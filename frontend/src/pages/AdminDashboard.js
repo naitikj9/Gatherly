@@ -129,7 +129,7 @@ export default function AdminDashboard() {
     const base = "OBSIDIAN · admin";
     document.title = pending.length > 0 ? `(${pending.length}) ${base}` : base;
     return () => {
-      document.title = "OBSIDIAN · AI Event Planner";
+      document.title = "Gatherly · Agent Console";
     };
   }, [pending.length]);
 

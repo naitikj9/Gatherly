@@ -36,6 +36,7 @@ class Settings:
     MIN_GUESTS: int = 1
     MAX_GUESTS: int = 2000
     MIN_BUDGET_INR: int = 10000
+    OPTIMIZER_MAX_ATTEMPTS: int = 2  # how many times the budget optimizer may loop
 
 
 settings = Settings()

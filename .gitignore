@@ -30,3 +30,7 @@ credentials.json
 *.pem
 *.key
 .credentials
+
+# Frontend
+node_modules/
+frontend/build/

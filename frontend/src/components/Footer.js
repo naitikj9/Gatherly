@@ -9,7 +9,7 @@ export default function Footer() {
           <div className="flex items-center gap-2 text-ink-primary font-black tracking-tight text-base">
             <TermIcon size={14} className="text-accent-orange" />
             OBSIDIAN <span className="text-ink-muted font-normal">·</span>{" "}
-            <span className="text-ink-secondary font-medium">AI EVENT PLANNER</span>
+            <span className="text-ink-secondary font-medium">GATHERLY</span>
           </div>
           <p className="mt-2 leading-relaxed">
             A 4-agent LangGraph system with RAG-grounded vendor selection,

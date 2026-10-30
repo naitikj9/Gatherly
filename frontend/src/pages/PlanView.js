@@ -20,8 +20,11 @@ import {
 } from "lucide-react";
 import ConsumerNav from "../components/ConsumerNav";
 import ConsumerFooter from "../components/ConsumerFooter";
+import PlanInsights from "../components/PlanInsights";
 import { api } from "../lib/api";
 import { cn, inr, unitLabel, vendorHighlights } from "../lib/utils";
+
+const CONTACT_EMAIL = process.env.REACT_APP_CONTACT_EMAIL || "hello@gatherly.example";
 
 const CAT_ICON = {
   venue: MapPin,
@@ -152,6 +155,9 @@ function PlanContent({ state, planId, catalog }) {
               <NextSteps state={state} planId={planId} />
             </div>
           </div>
+          <div className="mt-6">
+            <PlanInsights state={state} planId={planId} theme="light" />
+          </div>
         </>
       )}
     </div>
@@ -177,7 +183,7 @@ function StatusBanner({ state }) {
         </div>
         <div>
           <div className="font-serif text-lg text-slate-ink leading-tight">
-            Your plan is with a Vayu coordinator.
+            Your plan is with a Gatherly coordinator.
           </div>
           <div className="text-[13px] text-slate-mid mt-0.5">
             We&apos;ll confirm within a few hours — you can keep this page open or share it.
@@ -413,7 +419,7 @@ function NextSteps({ state, planId }) {
     const url = window.location.href;
     if (navigator.share) {
       try {
-        await navigator.share({ title: "My Vayu Events plan", url });
+        await navigator.share({ title: "My Gatherly plan", url });
       } catch {
         /* user cancelled share */
       }
@@ -434,7 +440,7 @@ function NextSteps({ state, planId }) {
       </div>
       <ol className="space-y-3 text-[13.5px] text-slate-mid">
         <Step done label="AI built your plan" />
-        <Step done={isBooked} active={isAwait} label="Vayu coordinator reviews" />
+        <Step done={isBooked} active={isAwait} label="Gatherly coordinator reviews" />
         <Step done={isBooked} label="Vendors confirmed & booked" />
         <Step label="You celebrate — we run the day" />
       </ol>
@@ -449,7 +455,7 @@ function NextSteps({ state, planId }) {
           <Share2 size={13} /> Share plan
         </button>
         <a
-          href={`mailto:hello@vayu.events?subject=My%20event%20plan%20${planId}&body=I%27d%20like%20to%20talk%20about%20my%20plan%3A%20${encodeURIComponent(window.location.href)}`}
+          href={`mailto:${CONTACT_EMAIL}?subject=My%20event%20plan%20${planId}&body=I%27d%20like%20to%20talk%20about%20my%20plan%3A%20${encodeURIComponent(window.location.href)}`}
           data-testid="contact-button"
           className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 bg-emerald-800 text-ivory-50 hover:bg-emerald-900 rounded-sm text-[12.5px] transition-colors"
         >

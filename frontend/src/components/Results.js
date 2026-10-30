@@ -13,6 +13,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { cn, inr, shortINR, unitLabel, vendorHighlights } from "../lib/utils";
+import PlanInsights from "./PlanInsights";
 
 const CAT_ICON = {
   venue: MapPin,
@@ -65,6 +66,9 @@ export default function Results({ state, catalog = {} }) {
               <BudgetCard plan={state.plan} budget={state.requirements?.budget_inr} />
               <ComplianceCard compliance={state.compliance} />
               <TimelineCard items={state.plan.timeline || []} />
+            </div>
+            <div className="lg:col-span-12">
+              <PlanInsights state={state} planId={state.plan_id} theme="dark" />
             </div>
           </div>
         )}

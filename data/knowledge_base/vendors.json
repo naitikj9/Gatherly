@@ -8,7 +8,13 @@
     "capacity": 400,
     "price_inr": 350000,
     "price_unit": "per_day",
-    "tags": ["wedding", "reception", "outdoor", "garden", "large"],
+    "tags": [
+      "wedding",
+      "reception",
+      "outdoor",
+      "garden",
+      "large"
+    ],
     "description": "Sprawling open-air garden lawn on the riverside, ideal for large weddings and receptions of up to 400 guests. Includes landscaped gardens, a covered stage, ample parking and a backup indoor hall in case of rain. Premium pricing."
   },
   {
@@ -20,7 +26,13 @@
     "capacity": 250,
     "price_inr": 180000,
     "price_unit": "per_day",
-    "tags": ["wedding", "reception", "indoor", "air-conditioned", "medium"],
+    "tags": [
+      "wedding",
+      "reception",
+      "indoor",
+      "air-conditioned",
+      "medium"
+    ],
     "description": "Fully air-conditioned indoor banquet hall seating 250 guests, with in-house lighting, a dance floor and valet parking. A reliable all-weather choice for weddings and receptions on a moderate budget."
   },
   {
@@ -32,7 +44,14 @@
     "capacity": 300,
     "price_inr": 220000,
     "price_unit": "per_day",
-    "tags": ["corporate", "conference", "seminar", "indoor", "projector", "wifi"],
+    "tags": [
+      "corporate",
+      "conference",
+      "seminar",
+      "indoor",
+      "projector",
+      "wifi"
+    ],
     "description": "Professional conference center with tiered seating for 300, high-speed wifi, dual projectors, breakout rooms and on-site AV support. Built for corporate conferences, product launches and seminars."
   },
   {
@@ -44,7 +63,14 @@
     "capacity": 80,
     "price_inr": 90000,
     "price_unit": "per_day",
-    "tags": ["birthday", "party", "cocktail", "rooftop", "outdoor", "small"],
+    "tags": [
+      "birthday",
+      "party",
+      "cocktail",
+      "rooftop",
+      "outdoor",
+      "small"
+    ],
     "description": "Stylish rooftop lounge with skyline views, perfect for birthday parties, cocktail evenings and small gatherings of up to 80 guests. Includes a bar counter and ambient lighting."
   },
   {
@@ -56,7 +82,13 @@
     "capacity": 500,
     "price_inr": 600000,
     "price_unit": "per_day",
-    "tags": ["wedding", "luxury", "indoor", "large", "premium"],
+    "tags": [
+      "wedding",
+      "luxury",
+      "indoor",
+      "large",
+      "premium"
+    ],
     "description": "Opulent heritage palace hall for grand luxury weddings of up to 500 guests. Features chandeliers, royal decor, bridal suites and premium hospitality. High-end budget required."
   },
   {
@@ -68,7 +100,14 @@
     "capacity": 150,
     "price_inr": 60000,
     "price_unit": "per_day",
-    "tags": ["birthday", "anniversary", "budget", "indoor", "small", "medium"],
+    "tags": [
+      "birthday",
+      "anniversary",
+      "budget",
+      "indoor",
+      "small",
+      "medium"
+    ],
     "description": "Affordable, no-frills indoor community hall seating 150 guests. A budget-friendly pick for birthdays, anniversaries and small family functions. Basic sound system included."
   },
   {
@@ -76,11 +115,19 @@
     "type": "caterer",
     "name": "Spice Route Catering",
     "city": "Bangalore",
-    "cuisine": ["north-indian", "south-indian", "chinese"],
+    "cuisine": [
+      "north-indian",
+      "south-indian",
+      "chinese"
+    ],
     "diet": "veg-and-nonveg",
     "price_inr": 850,
     "price_unit": "per_plate",
-    "tags": ["wedding", "buffet", "multi-cuisine"],
+    "tags": [
+      "wedding",
+      "buffet",
+      "multi-cuisine"
+    ],
     "description": "Full-service multi-cuisine caterer offering North Indian, South Indian and Chinese buffets, both veg and non-veg, at 850 INR per plate. Popular for weddings and large receptions."
   },
   {
@@ -88,11 +135,20 @@
     "type": "caterer",
     "name": "Green Leaf Pure Veg",
     "city": "Bangalore",
-    "cuisine": ["north-indian", "gujarati", "jain"],
+    "cuisine": [
+      "north-indian",
+      "gujarati",
+      "jain"
+    ],
     "diet": "pure-veg",
     "price_inr": 550,
     "price_unit": "per_plate",
-    "tags": ["wedding", "budget", "vegetarian", "jain"],
+    "tags": [
+      "wedding",
+      "budget",
+      "vegetarian",
+      "jain"
+    ],
     "description": "Pure vegetarian caterer specializing in North Indian, Gujarati and Jain menus at 550 INR per plate. A cost-effective, vegetarian-friendly option for traditional functions."
   },
   {
@@ -100,11 +156,20 @@
     "type": "caterer",
     "name": "Continental Bites",
     "city": "Mumbai",
-    "cuisine": ["continental", "italian", "snacks"],
+    "cuisine": [
+      "continental",
+      "italian",
+      "snacks"
+    ],
     "diet": "veg-and-nonveg",
     "price_inr": 1200,
     "price_unit": "per_plate",
-    "tags": ["corporate", "cocktail", "premium", "finger-food"],
+    "tags": [
+      "corporate",
+      "cocktail",
+      "premium",
+      "finger-food"
+    ],
     "description": "Premium continental and Italian caterer with gourmet finger food and live counters at 1200 INR per plate. Favored for corporate events and cocktail parties."
   },
   {
@@ -112,11 +177,18 @@
     "type": "caterer",
     "name": "Budget Tiffin Co.",
     "city": "Mumbai",
-    "cuisine": ["north-indian", "snacks"],
+    "cuisine": [
+      "north-indian",
+      "snacks"
+    ],
     "diet": "veg-and-nonveg",
     "price_inr": 350,
     "price_unit": "per_plate",
-    "tags": ["birthday", "budget", "small"],
+    "tags": [
+      "birthday",
+      "budget",
+      "small"
+    ],
     "description": "Economical caterer for small parties and birthdays at 350 INR per plate, offering simple North Indian meals and snack platters."
   },
   {
@@ -126,7 +198,12 @@
     "city": "Bangalore",
     "price_inr": 120000,
     "price_unit": "flat",
-    "tags": ["wedding", "floral", "premium", "stage"],
+    "tags": [
+      "wedding",
+      "floral",
+      "premium",
+      "stage"
+    ],
     "description": "Luxury floral and theme decorator for weddings, including stage design, mandap, floral walls and entrance arches. Flat package from 120000 INR."
   },
   {
@@ -136,7 +213,12 @@
     "city": "Mumbai",
     "price_inr": 45000,
     "price_unit": "flat",
-    "tags": ["corporate", "birthday", "lighting", "budget"],
+    "tags": [
+      "corporate",
+      "birthday",
+      "lighting",
+      "budget"
+    ],
     "description": "Modern lighting, balloon and backdrop decor suited to corporate events and birthdays. Affordable flat package from 45000 INR."
   },
   {
@@ -146,7 +228,13 @@
     "city": "Bangalore",
     "price_inr": 40000,
     "price_unit": "flat",
-    "tags": ["wedding", "birthday", "party", "dj", "music"],
+    "tags": [
+      "wedding",
+      "birthday",
+      "party",
+      "dj",
+      "music"
+    ],
     "description": "Professional DJ with sound system and lighting rig for weddings, birthdays and parties. Flat fee 40000 INR for a full evening."
   },
   {
@@ -156,7 +244,12 @@
     "city": "Mumbai",
     "price_inr": 60000,
     "price_unit": "flat",
-    "tags": ["corporate", "cocktail", "live-music", "premium"],
+    "tags": [
+      "corporate",
+      "cocktail",
+      "live-music",
+      "premium"
+    ],
     "description": "Three-piece live acoustic band for corporate dinners and cocktail receptions. Elegant background and feature sets. Flat fee 60000 INR."
   },
   {
@@ -166,7 +259,12 @@
     "city": "Bangalore",
     "price_inr": 80000,
     "price_unit": "flat",
-    "tags": ["wedding", "candid", "premium", "video"],
+    "tags": [
+      "wedding",
+      "candid",
+      "premium",
+      "video"
+    ],
     "description": "Wedding photography and cinematic videography team offering candid coverage, drone shots and a same-day highlight reel. Package from 80000 INR."
   },
   {
@@ -176,7 +274,228 @@
     "city": "Mumbai",
     "price_inr": 30000,
     "price_unit": "flat",
-    "tags": ["corporate", "birthday", "budget", "coverage"],
+    "tags": [
+      "corporate",
+      "birthday",
+      "budget",
+      "coverage"
+    ],
     "description": "Affordable event photography for corporate functions and birthdays, including edited digital album. Package from 30000 INR."
+  },
+  {
+    "id": "venue-007",
+    "type": "venue",
+    "name": "Lakeview Terrace",
+    "city": "Bangalore",
+    "setting": "outdoor",
+    "capacity": 200,
+    "price_inr": 140000,
+    "price_unit": "per_day",
+    "tags": [
+      "wedding",
+      "birthday",
+      "outdoor",
+      "terrace",
+      "lake",
+      "medium"
+    ],
+    "description": "Open-air lakeside terrace for up to 200 guests with fairy-light canopies and a retractable rain cover. A mid-priced outdoor alternative for weddings, receptions and milestone birthdays."
+  },
+  {
+    "id": "venue-008",
+    "type": "venue",
+    "name": "Sapphire Community Hall",
+    "city": "Delhi",
+    "setting": "indoor",
+    "capacity": 250,
+    "price_inr": 95000,
+    "price_unit": "per_day",
+    "tags": [
+      "birthday",
+      "anniversary",
+      "party",
+      "indoor",
+      "budget",
+      "medium"
+    ],
+    "description": "Simple, air-conditioned community hall for up to 250 guests with a small stage and in-house chairs. Great value for family functions and anniversaries."
+  },
+  {
+    "id": "venue-009",
+    "type": "venue",
+    "name": "Skyline Rooftop Lounge",
+    "city": "Mumbai",
+    "setting": "outdoor",
+    "capacity": 120,
+    "price_inr": 110000,
+    "price_unit": "per_day",
+    "tags": [
+      "birthday",
+      "party",
+      "cocktail",
+      "rooftop",
+      "outdoor",
+      "sea-view"
+    ],
+    "description": "Sea-facing rooftop lounge for up to 120 guests with a built-in bar, DJ console and partial shade. Popular for birthdays, cocktail evenings and engagement parties."
+  },
+  {
+    "id": "cater-005",
+    "type": "caterer",
+    "name": "Royal Dastarkhwan",
+    "city": "Delhi",
+    "cuisine": [
+      "mughlai",
+      "north-indian",
+      "awadhi"
+    ],
+    "diet": "veg-and-nonveg",
+    "price_inr": 1100,
+    "price_unit": "per_plate",
+    "tags": [
+      "wedding",
+      "premium",
+      "buffet",
+      "mughlai"
+    ],
+    "description": "Premium Mughlai and Awadhi catering with live kebab counters, known for large Delhi weddings."
+  },
+  {
+    "id": "cater-006",
+    "type": "caterer",
+    "name": "Annapurna Satvik Kitchen",
+    "city": "Delhi",
+    "cuisine": [
+      "north-indian",
+      "rajasthani",
+      "jain"
+    ],
+    "diet": "pure-veg",
+    "price_inr": 480,
+    "price_unit": "per_plate",
+    "tags": [
+      "wedding",
+      "anniversary",
+      "budget",
+      "vegetarian",
+      "jain"
+    ],
+    "description": "Pure-vegetarian Satvik and Rajasthani thalis on a budget, with Jain options on request."
+  },
+  {
+    "id": "cater-007",
+    "type": "caterer",
+    "name": "Udupi Grand Feast",
+    "city": "Bangalore",
+    "cuisine": [
+      "south-indian",
+      "udupi"
+    ],
+    "diet": "pure-veg",
+    "price_inr": 420,
+    "price_unit": "per_plate",
+    "tags": [
+      "wedding",
+      "birthday",
+      "budget",
+      "vegetarian",
+      "banana-leaf"
+    ],
+    "description": "Traditional Udupi banana-leaf meals and South Indian buffets at a very friendly per-plate price."
+  },
+  {
+    "id": "decor-003",
+    "type": "decorator",
+    "name": "Petal & Pine Studio",
+    "city": "Bangalore",
+    "price_inr": 55000,
+    "price_unit": "flat",
+    "tags": [
+      "wedding",
+      "birthday",
+      "minimal",
+      "budget",
+      "floral"
+    ],
+    "description": "Minimal, modern floral decor and photo backdrops. A lighter-budget alternative to full stage builds."
+  },
+  {
+    "id": "decor-004",
+    "type": "decorator",
+    "name": "Rajwada Decor House",
+    "city": "Delhi",
+    "price_inr": 150000,
+    "price_unit": "flat",
+    "tags": [
+      "wedding",
+      "heritage",
+      "premium",
+      "stage",
+      "mandap"
+    ],
+    "description": "Grand heritage-style mandaps, stage builds and entrance arches for big-fat Delhi weddings."
+  },
+  {
+    "id": "ent-003",
+    "type": "entertainment",
+    "name": "Bollywood Beats DJ",
+    "city": "Delhi",
+    "price_inr": 35000,
+    "price_unit": "flat",
+    "tags": [
+      "wedding",
+      "sangeet",
+      "party",
+      "dj",
+      "bollywood"
+    ],
+    "description": "High-energy Bollywood DJ with sound and light rig, sangeet and baraat specialists."
+  },
+  {
+    "id": "ent-004",
+    "type": "entertainment",
+    "name": "Strings & Stories Duo",
+    "city": "Bangalore",
+    "price_inr": 25000,
+    "price_unit": "flat",
+    "tags": [
+      "corporate",
+      "anniversary",
+      "live-music",
+      "acoustic",
+      "budget"
+    ],
+    "description": "Acoustic guitar and vocals duo for intimate dinners, anniversaries and corporate evenings."
+  },
+  {
+    "id": "photo-003",
+    "type": "photographer",
+    "name": "Click Story Basics",
+    "city": "Bangalore",
+    "price_inr": 35000,
+    "price_unit": "flat",
+    "tags": [
+      "birthday",
+      "corporate",
+      "budget",
+      "coverage"
+    ],
+    "description": "Single-photographer coverage with edited highlights, ideal for smaller budgets."
+  },
+  {
+    "id": "photo-004",
+    "type": "photographer",
+    "name": "Heritage Lens Collective",
+    "city": "Delhi",
+    "price_inr": 95000,
+    "price_unit": "flat",
+    "tags": [
+      "wedding",
+      "candid",
+      "premium",
+      "video",
+      "drone"
+    ],
+    "description": "Candid wedding photography and cinematic video with drone coverage."
   }
 ]
