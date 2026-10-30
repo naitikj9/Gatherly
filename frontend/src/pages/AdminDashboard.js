@@ -45,6 +45,7 @@ export default function AdminDashboard() {
   const [error, setError] = useState(null);
   const [historyKey, setHistoryKey] = useState(0);
   const [pending, setPending] = useState([]);
+  const [catalog, setCatalog] = useState({}); // id → full vendor entry
   const [freshIds, setFreshIds] = useState(new Set()); // recently-arrived plan ids (highlight)
   const knownIdsRef = useRef(null); // null on first load → don't toast
   const beepRef = useRef(makeBeep());
@@ -52,6 +53,16 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     api.architecture().then(setArchitecture).catch(() => {});
+    api
+      .vendors()
+      .then((d) => {
+        const m = {};
+        (d.vendors || []).forEach((v) => {
+          m[v.id] = v;
+        });
+        setCatalog(m);
+      })
+      .catch(() => {});
   }, []);
 
   // poll pending queue every 5s so admin sees new consumer submissions
@@ -215,7 +226,7 @@ export default function AdminDashboard() {
             </div>
           </div>
         )}
-        {state?.requirements && <Results state={state} />}
+        {state?.requirements && <Results state={state} catalog={catalog} />}
       </div>
 
       <History refreshKey={historyKey} onPick={handlePickPlan} />
