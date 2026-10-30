@@ -47,7 +47,7 @@ export default function About() {
           </h1>
           <p className="mt-6 max-w-2xl text-slate-mid text-[15px] leading-relaxed">
             Most &quot;AI&quot; planners are a single chat that hallucinates prices and forgets
-            constraints. Vayu is different — we built a four-agent LangGraph system
+            constraints. Gatherly is different — we built a six-agent LangGraph system
             where each agent has one job, hands its work to the next in a typed
             schema, and pauses for a real human before any booking is committed.
           </p>
@@ -79,7 +79,7 @@ export default function About() {
                   <UserCheck size={16} />
                 </div>
                 <div>
-                  <div className="font-serif text-xl tracking-tight">A Vayu coordinator</div>
+                  <div className="font-serif text-xl tracking-tight">A Gatherly coordinator</div>
                   <div className="text-[11px] tracking-widest font-mono uppercase text-gold-200">
                     the human in the loop
                   </div>

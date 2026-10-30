@@ -7,6 +7,9 @@ the routing:
   reject       -> a hard problem (no venue, over capacity, way over budget)
   needs_human  -> ok but high-impact, a person must approve before booking
   approve_auto -> within policy, safe to finalize automatically
+
+It also sets `optimizable` when cost is the only problem, which sends the plan
+to the budget optimizer before any of the above is final.
 """
 from __future__ import annotations
 
@@ -72,8 +75,22 @@ def compliance_node(state: PlannerState) -> dict:
         decision, risk = "approve_auto", "low"
         rationale = "Within budget and policy; safe to finalize."
 
+    # weather: an outdoor event in peak rain season always gets a human look
+    insights = state.get("insights")
+    if insights and insights.weather.risk == "high" and decision != "reject":
+        violations.append(f"Weather: {insights.weather.advice}")
+        if decision == "approve_auto":
+            decision, risk = "needs_human", "medium"
+            rationale = "Within budget, but high weather risk for an outdoor venue."
+
+    # cost is the only problem -> the budget optimizer gets a shot first
+    hard_fail = shortlist.venue is None or any("capacity" in v for v in violations) \
+        or "NOT available" in (shortlist.notes or "")
+    optimizable = over > 0 and not hard_fail
+
     result = ComplianceResult(
-        decision=decision, risk_level=risk, violations=violations, rationale=rationale
+        decision=decision, risk_level=risk, violations=violations, rationale=rationale,
+        optimizable=optimizable,
     )
     msg = log_step("compliance", f"Decision: {decision} ({risk} risk). {rationale}", result)
     return {"compliance": result, "log": [msg]}
