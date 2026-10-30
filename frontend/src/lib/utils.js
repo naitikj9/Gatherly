@@ -26,7 +26,9 @@ export const NODE_LABEL = {
   intake: "INTAKE",
   research: "VENDOR · RAG",
   planner: "PLANNER",
+  insights: "INSIGHTS",
   compliance: "COMPLIANCE",
+  optimizer: "OPTIMIZER",
   refusal: "REFUSE",
   reject: "REJECT",
   human_approval: "HITL",
@@ -47,7 +49,7 @@ export const STATUS_META = {
 
 /** Returns the ordered set of agent nodes the run visited. */
 export const visitedNodes = (logs = []) => {
-  const order = ["intake", "venue", "planner", "compliance"];
+  const order = ["intake", "venue", "planner", "insights", "compliance", "optimizer"];
   const visited = new Set(
     logs.map((l) => (l.node === "venue" ? "venue" : l.node))
   );

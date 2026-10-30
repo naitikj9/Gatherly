@@ -19,4 +19,5 @@ export const api = {
   listPlans: () => client.get("/plans").then((r) => r.data),
   getPlan: (planId) => client.get(`/plans/${planId}`).then((r) => r.data),
   deletePlan: (planId) => client.delete(`/plans/${planId}`).then((r) => r.data),
+  exportUrl: (planId, format) => `${API}/plans/${planId}/export.${format}`,
 };

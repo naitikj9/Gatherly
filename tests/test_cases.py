@@ -60,7 +60,7 @@ SCENARIOS = [
         "id": "small_event",
         "request": (
             "Plan a small birthday in Mumbai for 30 guests with a budget of "
-            "1 lakh on 2026-09-10. Keep it simple: only a community hall and "
+            "1 lakh on 2027-09-10. Keep it simple: only a community hall and "
             "basic catering. No decorator, DJ, or photographer."
         ),
         "decision": approve,  # booked whether it auto-approves or asks first

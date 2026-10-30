@@ -98,3 +98,63 @@ class ComplianceResult(BaseModel):
         default_factory=list, description="Concrete policy/safety problems found."
     )
     rationale: str = Field(default="", description="Short explanation of the verdict.")
+    optimizable: bool = Field(
+        default=False,
+        description="True when the only problem is cost, so the budget optimizer "
+        "can try swapping vendors before giving up.",
+    )
+
+
+# --- Insights agent output ---
+
+
+class WeatherRisk(BaseModel):
+    month: Optional[str] = None
+    rain_probability: Optional[float] = None
+    high_c: Optional[int] = None
+    risk: Literal["low", "medium", "high", "unknown"] = "unknown"
+    advice: str = ""
+
+
+class ChecklistItem(BaseModel):
+    due: str
+    days_before: int
+    task: str
+    urgent: bool = False
+
+
+class PlanPackage(BaseModel):
+    tier: Literal["lean", "balanced", "luxe"]
+    label: str
+    blurb: str = ""
+    vendors: dict = Field(default_factory=dict, description="category -> vendor name")
+    vendor_ids: dict = Field(default_factory=dict, description="category -> vendor id")
+    total_cost_inr: int = 0
+    per_guest_inr: int = 0
+    fits_budget: bool = False
+
+
+class HealthFactor(BaseModel):
+    name: str
+    score: int
+    max: int
+    note: str = ""
+
+
+class HealthScore(BaseModel):
+    score: int = 0
+    grade: Literal["A", "B", "C", "D"] = "D"
+    factors: List[HealthFactor] = Field(default_factory=list)
+
+
+class Insights(BaseModel):
+    """Everything the insights agent adds on top of the core plan."""
+
+    event_date_iso: Optional[str] = None
+    weekday: Optional[str] = None
+    days_until: Optional[int] = None
+    weather: WeatherRisk = Field(default_factory=WeatherRisk)
+    checklist: List[ChecklistItem] = Field(default_factory=list)
+    packages: List[PlanPackage] = Field(default_factory=list)
+    health: HealthScore = Field(default_factory=HealthScore)
+    per_guest_cost_inr: int = 0
