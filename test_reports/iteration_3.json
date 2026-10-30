@@ -1,0 +1,39 @@
+{
+  "summary": "Iteration 3 (frontend-only scope): verified the two UX iterations — free budget input on Wizard Step 4 + per-category vendor highlights & better unit labels on both consumer PlanView and Admin Results. Backend regression run as a sanity check: pytest 16/16 PASS (no backend changes). All scoped frontend assertions PASS.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/plans (POST)", "issue": "Rejected the test fetch payload that embedded a literal '₹' character in the prompt with HTTP 422 — unrelated to this iteration's scope, but flagging in case the prompt validator should accept Unicode currency glyphs. The same prompt with plain text 'INR 4,00,000' or '₹' replaced with 'Rs.' would likely pass."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "PlanView Headline (carryover from iter 2)", "issues": ["Tailwind `capitalize` on the h1 still title-cases every word ('A Wedding In Bangalore'). Cosmetic carryover."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "(Optional) Decide whether POST /api/plans should accept '₹' literal in the prompt body (currently 422); easy validator tweak if desired.",
+    "(Optional carryover) Replace `capitalize` h1 class in PlanView Headline with explicit first-letter handling."
+  ],
+  "critical_code_review_comments": [
+    "frontend/src/lib/utils.js — unitLabel() and vendorHighlights() are clean, side-effect free, well-scoped helpers; both consumer (VendorRow) and admin (VendorCard) reuse them which is exactly the right shape.",
+    "Wizard.js inrInWords() is correct for the values tested (525000 → '5.25 lakh', 800000 → '8 lakh', 1500000 → '15 lakh', 1e7 → '1 crore'). Edge case: values like 999999 will render as '10 lakh' due to toFixed rounding — minor cosmetic, low priority.",
+    "PlanView.js loads /api/vendors once on mount and memoises into a map — good. Catalog is passed all the way down to VendorRow. Highlights gracefully degrade to null if entry is missing (e.g. catalog still loading) — no crash.",
+    "Wizard.js BUDGET_QUICKFILL value-equality match (`budget_inr === q.value`) is correct for the chip's 'selected' visual state.",
+    "Admin in-app toast pipeline (5s polling on /api/plans?pending_only=true) still works — verified by a fresh wedding plan created in this run being surfaced as 'NEW APPROVAL REQUEST' and the view button opening the HITL modal."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (16/16 regression)", "frontend": "100% (all scoped iter-3 checks pass)"},
+  "test_credentials": "n/a (no auth)",
+  "seed_data_creation": "Created 1 additional wedding-in-Bangalore awaiting_approval plan via the wizard (budget ₹8,00,000, 150 guests, 2026-12-18). It remains in the pending queue. The corporate-offsite plan via fetch was NOT created (POST returned 422 because the prompt body contained '₹').",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Iter-3 verified UI assertions for budget-input auto-format, budget-quick-{value} chips, vendor-{n}-highlights + per-category unit labels (1-DAY RENTAL, PER GUEST, PACKAGE PRICE, FULL EVENING, COMPLETE PACKAGE) on /plan/:id, and vendor-card-{n}-highlights on /admin. Old budget bucket testids (budget-1L, budget-3L, budget-8L, budget-15L, budget-15L+) have been confirmed REMOVED. Admin arrival-toast → arrival-toast-view → hitl-modal flow still works. Backend untouched in this iter; pytest @ /app/backend/tests/backend_test.py still 16/16. If you need to fire test fetches POST /api/plans from the browser context, prefer 'Rs.' over '₹' (literal ₹ in JSON body causes 422 on the validator).",
+  "rca of the issue": "n/a — no bugs found in the iteration scope."
+}
