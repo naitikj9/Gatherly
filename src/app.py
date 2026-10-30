@@ -9,6 +9,8 @@ from __future__ import annotations
 import sys
 import uuid
 
+from .config import RUNS_DIR
+from .exporters import serialize_state, to_ics, to_markdown
 from .logging_utils import console
 from .runner import run_planner
 
@@ -26,11 +28,30 @@ def main() -> None:
         console.print("[bold]Describe your event[/bold] (press Enter for a sample):")
         request = input("> ").strip() or SAMPLE
 
-    result = run_planner(request, thread_id=f"cli-{uuid.uuid4().hex[:8]}")
+    run_id = f"cli-{uuid.uuid4().hex[:8]}"
+    result = run_planner(request, thread_id=run_id)
 
     console.rule("[bold green]RESULT")
     console.print(f"[bold]Status:[/bold] {result.get('status', 'unknown')}\n")
     console.print(result.get("final_message", "(no message)"))
+
+    if result.get("status") == "booked":
+        _export(result, run_id)
+
+
+def _export(result: dict, run_id: str) -> None:
+    """Save the booked plan as Markdown + a calendar file next to the traces."""
+    RUNS_DIR.mkdir(exist_ok=True)
+    state = serialize_state(result)
+    md_path = RUNS_DIR / f"plan-{run_id}.md"
+    md_path.write_text(to_markdown(state, run_id), encoding="utf-8")
+    console.print(f"\n[dim]Saved plan:[/dim] {md_path}")
+    try:
+        ics_path = RUNS_DIR / f"plan-{run_id}.ics"
+        ics_path.write_text(to_ics(state, run_id), encoding="utf-8", newline="")
+        console.print(f"[dim]Saved calendar:[/dim] {ics_path}")
+    except ValueError as e:
+        console.print(f"[dim]{e}[/dim]")
 
 
 if __name__ == "__main__":

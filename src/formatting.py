@@ -5,7 +5,9 @@ the person approving sees exactly what will be booked.
 """
 from __future__ import annotations
 
-from .schemas import ComplianceResult, EventPlan, EventRequirements, VendorShortlist
+from typing import List, Optional
+
+from .schemas import ComplianceResult, EventPlan, EventRequirements, Insights, VendorShortlist
 
 
 def _vendor_lines(shortlist: VendorShortlist) -> str:
@@ -25,6 +27,8 @@ def format_plan(
     shortlist: VendorShortlist,
     plan: EventPlan,
     compliance: ComplianceResult,
+    insights: Optional[Insights] = None,
+    optimization_log: Optional[List[str]] = None,
 ) -> str:
     """Full human-readable plan."""
     lines = [
@@ -44,6 +48,19 @@ def format_plan(
         lines.append(f"  {line.category.title():14} ₹{line.amount_inr:,}")
     lines.append(f"  {'TOTAL':14} ₹{plan.total_cost_inr:,}")
     lines += ["", f"Summary: {plan.summary}"]
+    if insights:
+        lines += ["", f"Plan health: {insights.health.score}/100 (grade {insights.health.grade})"]
+        lines += [f"  {f.name:17} {f.score:>2}/{f.max:<2}  {f.note}" for f in insights.health.factors]
+        if insights.weather.risk != "unknown":
+            lines += ["", f"Weather ({insights.weather.month}): {insights.weather.risk} risk. "
+                          f"{insights.weather.advice}"]
+        if insights.checklist:
+            lines += ["", "Countdown checklist:"]
+            lines += [f"  {i.due}  {'[URGENT] ' if i.urgent else ''}{i.task}"
+                      for i in insights.checklist]
+    if optimization_log:
+        lines += ["", "Budget optimizer:"]
+        lines += [f"  - {c}" for c in optimization_log]
     if compliance.violations:
         lines += ["", "Notes / flags:"]
         lines += [f"  - {v}" for v in compliance.violations]

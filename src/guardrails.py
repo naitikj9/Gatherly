@@ -10,6 +10,7 @@ from typing import List
 
 from .config import settings
 from .schemas import EventRequirements
+from .tools.dates import describe_date
 
 # obvious red-flag terms -> refuse outright, alongside the LLM's own judgment
 _UNSAFE_TERMS = [
@@ -46,6 +47,11 @@ def validate_requirements(req: EventRequirements) -> List[str]:
         problems.append(
             f"Budget ₹{req.budget_inr:,} is below the minimum workable "
             f"budget of ₹{settings.MIN_BUDGET_INR:,}."
+        )
+    when = describe_date(req.event_date)
+    if when["is_past"]:
+        problems.append(
+            f"The event date {when['iso']} is in the past; please pick a future date."
         )
     return problems
 

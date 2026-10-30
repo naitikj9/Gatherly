@@ -11,7 +11,7 @@ from typing import Annotated, List, Optional
 
 from typing_extensions import TypedDict
 
-from .schemas import ComplianceResult, EventPlan, EventRequirements, VendorShortlist
+from .schemas import ComplianceResult, EventPlan, EventRequirements, Insights, VendorShortlist
 
 
 class PlannerState(TypedDict, total=False):
@@ -23,7 +23,13 @@ class PlannerState(TypedDict, total=False):
     retrieved_context: List[str]
     shortlist: Optional[VendorShortlist]
     plan: Optional[EventPlan]
+    insights: Optional[Insights]
     compliance: Optional[ComplianceResult]
+
+    # budget optimizer loop
+    optimizer_attempts: int
+    optimization_log: Annotated[List[str], operator.add]  # each swap it made, in order
+    optimizer_stuck: bool                  # True when it found nothing cheaper
 
     # control / outcome
     human_decision: Optional[str]          # "approve" / "reject" from the person

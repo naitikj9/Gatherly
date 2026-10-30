@@ -13,6 +13,7 @@ from ..llm import get_chat_llm
 from ..logging_utils import log_step
 from ..schemas import EventRequirements
 from ..state import PlannerState
+from ..tools.dates import describe_date
 
 _SYSTEM = """You are the Intake agent of an event-planning system.
 Extract a structured event brief from the user's request.
@@ -46,6 +47,12 @@ def intake_node(state: PlannerState) -> dict:
     req: EventRequirements = structured_llm.invoke(
         [SystemMessage(content=_SYSTEM), HumanMessage(content=request)]
     )
+
+    # normalize "Dec 18" / "next Saturday" to ISO so availability + checklist work
+    if req.in_scope and req.event_date:
+        when = describe_date(req.event_date)
+        if when["iso"]:
+            req.event_date = when["iso"]
 
     summary = (
         f"{req.event_type} in {req.city or '?'}, {req.guest_count} guests, "

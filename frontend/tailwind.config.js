@@ -22,7 +22,7 @@ module.exports = {
           secondary: "#A1A1AA",
           muted: "#52525B",
         },
-        // ── consumer "vayu" warm-ivory palette
+        // ── consumer "gatherly" warm-ivory palette
         ivory: {
           50: "#FBF8F2",
           100: "#F5EFE3",

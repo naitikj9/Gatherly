@@ -1,13 +1,15 @@
 import React, { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { FileText, Search, CalendarRange, ShieldCheck } from "lucide-react";
+import { FileText, Search, CalendarRange, ShieldCheck, Gauge, Wand2 } from "lucide-react";
 import { cn } from "../lib/utils";
 
 const ICONS = {
   intake: FileText,
   research: Search,
   planner: CalendarRange,
+  insights: Gauge,
   compliance: ShieldCheck,
+  optimizer: Wand2,
 };
 
 // Determine each node's state based on what's available in the result state
@@ -15,7 +17,7 @@ function computeNodeStates(state, logs, running) {
   const visited = new Set(
     (logs || []).map((l) => (l.node === "venue" ? "research" : l.node))
   );
-  const order = ["intake", "research", "planner", "compliance"];
+  const order = ["intake", "research", "planner", "insights", "compliance"];
   const out = {};
   for (const id of order) {
     if (visited.has(id)) out[id] = "done";
@@ -30,6 +32,8 @@ function computeNodeStates(state, logs, running) {
       }
     }
   }
+  // the optimizer only runs when a plan is over budget
+  out["optimizer"] = visited.has("optimizer") ? "done" : "idle";
   // refusal/reject paths
   if (state?.status === "refused") {
     out["intake"] = "fail";
@@ -54,7 +58,9 @@ export default function Pipeline({ state, logs, running, architecture }) {
     { id: "intake", label: "Intake", role: "Parse + safety screen" },
     { id: "research", label: "Vendor & RAG", role: "Catalog search → select vendors" },
     { id: "planner", label: "Planner", role: "Timeline + exact budget" },
+    { id: "insights", label: "Insights", role: "Weather, checklist, health score" },
     { id: "compliance", label: "Compliance", role: "Policy + safety gate" },
+    { id: "optimizer", label: "Budget Optimizer", role: "Self-heals over-budget plans" },
   ];
 
   return (

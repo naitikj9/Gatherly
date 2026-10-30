@@ -59,7 +59,7 @@ const STEPS = [
   {
     n: "03",
     title: "We review every plan by hand",
-    body: "A real Vayu coordinator approves your plan before any vendor is booked.",
+    body: "A real Gatherly coordinator approves your plan before any vendor is booked.",
   },
   {
     n: "04",
@@ -106,7 +106,7 @@ export default function Landing() {
             <p className="mt-6 max-w-xl text-[16px] leading-relaxed text-slate-mid">
               From a 150-guest wedding in Bangalore to a rooftop birthday in
               Mumbai — describe your occasion once and our AI builds a complete,
-              costed plan. A real Vayu coordinator reviews every plan before
+              costed plan. A real Gatherly coordinator reviews every plan before
               anything is booked.
             </p>
 

@@ -1,8 +1,11 @@
 """The LangGraph: nodes, edges, conditional routing and the human-in-the-loop.
 
 intake screens/parses the request and either refuses or moves on. research
-finds vendors (or rejects if no venue fits). planner builds the plan, compliance
-decides whether to finalize, reject, or ask a human. human_approval pauses the
+finds vendors (or rejects if no venue fits). planner builds the plan, insights
+adds weather/checklist/packages/health score, compliance decides whether to
+finalize, reject, or ask a human. If cost is the only problem, compliance first
+loops through the budget optimizer (optimizer -> planner -> insights ->
+compliance), up to OPTIMIZER_MAX_ATTEMPTS times. human_approval pauses the
 graph until the person approves or declines.
 """
 from __future__ import annotations
@@ -14,18 +17,32 @@ from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import interrupt
 
-from .agents import compliance_node, intake_node, planner_node, research_node
+from .agents import (
+    compliance_node,
+    insights_node,
+    intake_node,
+    optimizer_node,
+    planner_node,
+    research_node,
+)
+from .config import settings
 from .formatting import approval_summary, format_plan
 from .guardrails import validate_requirements
 from .logging_utils import log_step
 from .schemas import (
     BudgetLine,
+    ChecklistItem,
     ComplianceResult,
     EventPlan,
     EventRequirements,
+    HealthFactor,
+    HealthScore,
+    Insights,
+    PlanPackage,
     ScheduleItem,
     VendorChoice,
     VendorShortlist,
+    WeatherRisk,
 )
 from .state import PlannerState
 
@@ -47,6 +64,12 @@ def _make_serializer() -> JsonPlusSerializer:
             BudgetLine,
             EventPlan,
             ComplianceResult,
+            WeatherRisk,
+            ChecklistItem,
+            PlanPackage,
+            HealthFactor,
+            HealthScore,
+            Insights,
         ]
     )
 
@@ -74,6 +97,10 @@ def reject_node(state: PlannerState) -> dict:
     compliance = state.get("compliance")
     if compliance and compliance.violations:
         message = "Plan rejected. " + " ".join(compliance.violations)
+        if state.get("optimization_log"):
+            message += (" The budget optimizer tried "
+                        f"{len(state['optimization_log'])} cheaper swap(s) but "
+                        "couldn't bring it within tolerance.")
     else:
         message = (
             "Plan rejected. No venue in the catalog matches the requested city "
@@ -112,7 +139,8 @@ def declined_node(state: PlannerState) -> dict:
 def finalize_node(state: PlannerState) -> dict:
     """End state for an approved plan: 'book' it and show the full plan."""
     message = format_plan(
-        state["requirements"], state["shortlist"], state["plan"], state["compliance"]
+        state["requirements"], state["shortlist"], state["plan"], state["compliance"],
+        state.get("insights"), state.get("optimization_log"),
     )
     confirmation = "BOOKED.\n\n" + message
     log_step("finalize", "Plan booked and finalized.")
@@ -134,11 +162,21 @@ def route_after_research(state: PlannerState) -> str:
 
 
 def route_after_compliance(state: PlannerState) -> str:
+    compliance = state["compliance"]
+    if (compliance.optimizable
+            and not state.get("optimizer_stuck")
+            and state.get("optimizer_attempts", 0) < settings.OPTIMIZER_MAX_ATTEMPTS):
+        return "optimizer"
     return {
         "approve_auto": "finalize",
         "needs_human": "human_approval",
         "reject": "reject",
     }[state["compliance"].decision]
+
+
+def route_after_optimizer(state: PlannerState) -> str:
+    # nothing cheaper found: re-run compliance, which now routes normally
+    return "compliance" if state.get("optimizer_stuck") else "planner"
 
 
 def route_after_human(state: PlannerState) -> str:
@@ -157,7 +195,9 @@ def build_graph(checkpointer=None):
     g.add_node("intake", intake_node)
     g.add_node("research", research_node)
     g.add_node("planner", planner_node)
+    g.add_node("insights", insights_node)
     g.add_node("compliance", compliance_node)
+    g.add_node("optimizer", optimizer_node)
     # control nodes
     g.add_node("refuse", refusal_node)
     g.add_node("reject", reject_node)
@@ -170,10 +210,13 @@ def build_graph(checkpointer=None):
                             {"research": "research", "refuse": "refuse"})
     g.add_conditional_edges("research", route_after_research,
                             {"planner": "planner", "reject": "reject"})
-    g.add_edge("planner", "compliance")
+    g.add_edge("planner", "insights")
+    g.add_edge("insights", "compliance")
     g.add_conditional_edges("compliance", route_after_compliance,
                             {"finalize": "finalize", "human_approval": "human_approval",
-                             "reject": "reject"})
+                             "reject": "reject", "optimizer": "optimizer"})
+    g.add_conditional_edges("optimizer", route_after_optimizer,
+                            {"planner": "planner", "compliance": "compliance"})
     g.add_conditional_edges("human_approval", route_after_human,
                             {"finalize": "finalize", "declined": "declined"})
 

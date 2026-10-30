@@ -40,12 +40,12 @@ export default function ConsumerNav({ transparent = false }) {
         >
           <div className="w-8 h-8 grid place-items-center bg-emerald-800 text-ivory-50 rounded-full">
             <span className="font-serif italic text-base leading-none translate-y-[1px]">
-              V
+              G
             </span>
           </div>
           <div className="leading-tight">
             <div className="font-serif text-[18px] text-slate-ink tracking-tight">
-              Vayu <span className="italic text-emerald-800">Events</span>
+              Gather<span className="italic text-emerald-800">ly</span>
             </div>
             <div className="text-[9px] font-mono tracking-[0.3em] uppercase text-gold-600 -mt-0.5">
               ai · planning · grace

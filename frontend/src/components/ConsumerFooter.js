@@ -10,7 +10,7 @@ export default function ConsumerFooter() {
       <div className="max-w-7xl mx-auto px-6 lg:px-10 py-10 grid grid-cols-1 md:grid-cols-4 gap-8 text-[13px] text-slate-mid">
         <div className="md:col-span-2">
           <div className="font-serif text-xl text-slate-ink">
-            Vayu <span className="italic text-emerald-800">Events</span>
+            Gather<span className="italic text-emerald-800">ly</span>
           </div>
           <p className="mt-2 max-w-md leading-relaxed">
             Heartful celebrations, intelligently planned. We pair a four-agent
@@ -40,12 +40,12 @@ export default function ConsumerFooter() {
               </Link>
             </li>
             <li>Cities: Bangalore · Mumbai · Delhi</li>
-            <li>hello@vayu.events</li>
+            <li>hello@gatherly.example</li>
           </ul>
         </div>
       </div>
       <div className="border-t border-ivory-200 py-3 text-[11px] text-slate-soft text-center">
-        © Vayu Events · A multi-agent AI demo · all bookings reviewed by a
+        © Gatherly · A multi-agent AI demo · all bookings reviewed by a
         human
       </div>
     </footer>

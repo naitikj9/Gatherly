@@ -1,4 +1,4 @@
-"""FastAPI backend wrapping the multi-agent AI Event Planner (LangGraph).
+"""FastAPI backend for Gatherly, the multi-agent AI event planner (LangGraph).
 
 Exposes the existing /app/src LangGraph engine as REST endpoints:
   POST   /api/plans                     -> start a plan run (returns full state)
@@ -6,6 +6,8 @@ Exposes the existing /app/src LangGraph engine as REST endpoints:
   GET    /api/plans/{plan_id}           -> fetch a saved plan
   GET    /api/plans                     -> list recent plans (history)
   DELETE /api/plans/{plan_id}           -> delete a saved plan
+  GET    /api/plans/{plan_id}/export.ics -> calendar file (event + checklist)
+  GET    /api/plans/{plan_id}/export.md  -> Markdown plan document
   GET    /api/vendors                   -> full catalog
   GET    /api/sample-prompts            -> demo prompts
   GET    /api/architecture              -> static graph definition (for UI viz)
@@ -23,6 +25,7 @@ from typing import Any, Dict, List, Optional
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import Response
 from fastapi.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, Field
@@ -38,6 +41,7 @@ if str(APP_ROOT) not in sys.path:
 
 from langgraph.types import Command  # noqa: E402
 
+from src.exporters import serialize_state, to_ics, to_markdown  # noqa: E402
 from src.graph import build_graph  # noqa: E402
 from src.tools.retrieval import load_catalog  # noqa: E402
 from src.logging_utils import RunLogger, set_active_logger  # noqa: E402
@@ -52,7 +56,7 @@ plans_collection = db["plans"]
 
 
 # ---------------------------------------------------------------- App + Graph
-app = FastAPI(title="AI Event Planner API", version="1.0.0")
+app = FastAPI(title="Gatherly API", version="2.0.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -94,25 +98,7 @@ class DecisionRequest(BaseModel):
 # ---------------------------------------------------------------- Helpers
 def _serialize_state(state: dict) -> dict:
     """Pydantic-aware → plain dict for JSON response / Mongo persistence."""
-    def _v(x):
-        if x is None:
-            return None
-        if hasattr(x, "model_dump"):
-            return x.model_dump()
-        return x
-
-    out = {
-        "user_request": state.get("user_request", ""),
-        "requirements": _v(state.get("requirements")),
-        "shortlist": _v(state.get("shortlist")),
-        "plan": _v(state.get("plan")),
-        "compliance": _v(state.get("compliance")),
-        "status": state.get("status"),
-        "final_message": state.get("final_message"),
-        "log": state.get("log", []),
-        "human_decision": state.get("human_decision"),
-    }
-    return out
+    return serialize_state(state)
 
 
 def _interrupt_payload(result: dict) -> Optional[dict]:
@@ -141,7 +127,7 @@ async def _invoke_graph(payload, config) -> dict:
 # ---------------------------------------------------------------- Routes
 @app.get("/api/health")
 async def health() -> dict:
-    return {"status": "ok", "service": "ai-event-planner"}
+    return {"status": "ok", "service": "gatherly"}
 
 
 @app.get("/api/sample-prompts")
@@ -158,7 +144,7 @@ async def sample_prompts() -> dict:
             },
             {
                 "label": "Rooftop birthday · Mumbai · ₹2L",
-                "text": "Plan a rooftop birthday party in Mumbai for 60 guests on 2026-10-05, budget 2 lakh, outdoor, with a DJ and finger food.",
+                "text": "Plan a rooftop birthday party in Mumbai for 60 guests on 2027-02-13, budget 2 lakh, outdoor, with a DJ and finger food.",
             },
             {
                 "label": "Luxury wedding · Delhi · ₹15L",
@@ -166,7 +152,7 @@ async def sample_prompts() -> dict:
             },
             {
                 "label": "Small anniversary · Mumbai · ₹80k",
-                "text": "Plan a 25th anniversary celebration in Mumbai for 100 guests on 2026-09-14, budget 80 thousand, indoor, vegetarian buffet.",
+                "text": "Plan a 25th anniversary celebration in Mumbai for 100 guests on 2027-03-14, budget 80 thousand, indoor, vegetarian buffet.",
             },
             {
                 "label": "Out-of-scope test",
@@ -184,14 +170,19 @@ async def architecture() -> dict:
             {"id": "intake", "label": "Intake", "role": "Parse natural-language brief + safety screen", "icon": "FileText"},
             {"id": "research", "label": "Venue & Vendor (RAG)", "role": "Semantic search over catalog → choose vendors", "icon": "Search"},
             {"id": "planner", "label": "Planner", "role": "Build day-of timeline + exact budget", "icon": "CalendarRange"},
+            {"id": "insights", "label": "Insights", "role": "Weather risk, countdown checklist, packages, health score", "icon": "Gauge"},
             {"id": "compliance", "label": "Compliance", "role": "Deterministic policy & safety gate", "icon": "ShieldCheck"},
+            {"id": "optimizer", "label": "Budget Optimizer", "role": "Swaps vendors to self-heal over-budget plans", "icon": "Wand2"},
         ],
         "edges": [
             {"from": "intake", "to": "research", "label": "valid"},
             {"from": "intake", "to": "refuse", "label": "unsafe/invalid", "kind": "alt"},
             {"from": "research", "to": "planner", "label": "venue found"},
             {"from": "research", "to": "reject", "label": "no venue fits", "kind": "alt"},
-            {"from": "planner", "to": "compliance"},
+            {"from": "planner", "to": "insights"},
+            {"from": "insights", "to": "compliance"},
+            {"from": "compliance", "to": "optimizer", "label": "over budget", "kind": "alt"},
+            {"from": "optimizer", "to": "planner", "label": "cheaper mix", "kind": "alt"},
             {"from": "compliance", "to": "finalize", "label": "auto-approve"},
             {"from": "compliance", "to": "human_approval", "label": "needs human", "kind": "alt"},
             {"from": "compliance", "to": "reject", "label": "hard violation", "kind": "alt"},
@@ -292,6 +283,7 @@ async def list_plans(limit: int = 50, pending_only: bool = False) -> dict:
             "total_cost_inr": ((d.get("state") or {}).get("plan") or {}).get("total_cost_inr"),
             "budget_inr": ((d.get("state") or {}).get("requirements") or {}).get("budget_inr"),
             "guest_count": ((d.get("state") or {}).get("requirements") or {}).get("guest_count"),
+            "health_score": (((d.get("state") or {}).get("insights") or {}).get("health") or {}).get("score"),
             "updated_at": d.get("updated_at"),
         }
         for d in items
@@ -305,3 +297,34 @@ async def delete_plan(plan_id: str) -> dict:
     if res.deleted_count == 0:
         raise HTTPException(status_code=404, detail="plan not found")
     return {"ok": True}
+
+
+async def _load_state(plan_id: str) -> dict:
+    doc = await plans_collection.find_one({"plan_id": plan_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="plan not found")
+    return doc.get("state") or {}
+
+
+@app.get("/api/plans/{plan_id}/export.ics")
+async def export_ics(plan_id: str) -> Response:
+    state = await _load_state(plan_id)
+    try:
+        body = to_ics(state, plan_id)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    return Response(
+        content=body,
+        media_type="text/calendar; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="gatherly-{plan_id}.ics"'},
+    )
+
+
+@app.get("/api/plans/{plan_id}/export.md")
+async def export_markdown(plan_id: str) -> Response:
+    state = await _load_state(plan_id)
+    return Response(
+        content=to_markdown(state, plan_id),
+        media_type="text/markdown; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="gatherly-{plan_id}.md"'},
+    )
