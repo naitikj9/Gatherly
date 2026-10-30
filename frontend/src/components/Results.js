@@ -12,7 +12,7 @@ import {
   AlertTriangle,
   XCircle,
 } from "lucide-react";
-import { cn, inr, shortINR } from "../lib/utils";
+import { cn, inr, shortINR, unitLabel, vendorHighlights } from "../lib/utils";
 import PlanInsights from "./PlanInsights";
 
 const CAT_ICON = {
@@ -30,7 +30,7 @@ const VENUE_IMG = {
     "https://images.unsplash.com/photo-1772127822525-7eda37383b9f?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMjh8MHwxfHNlYXJjaHwxfHxpbmRpYW4lMjB3ZWRkaW5nJTIwb3V0ZG9vciUyMHZlbnVlfGVufDB8fHx8MTc4MjQ5NDgwN3ww&ixlib=rb-4.1.0&q=85",
 };
 
-export default function Results({ state }) {
+export default function Results({ state, catalog = {} }) {
   if (!state || !state.requirements) return null;
   const isFail =
     state.status === "refused" ||
@@ -60,7 +60,7 @@ export default function Results({ state }) {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
             <div className="lg:col-span-8 space-y-4">
               <SummaryBar state={state} />
-              <VendorGrid shortlist={state.shortlist} setting={state.requirements?.setting_preference} />
+              <VendorGrid shortlist={state.shortlist} setting={state.requirements?.setting_preference} catalog={catalog} />
             </div>
             <div className="lg:col-span-4 space-y-4">
               <BudgetCard plan={state.plan} budget={state.requirements?.budget_inr} />
@@ -126,7 +126,7 @@ function Field({ label, value, icon }) {
   );
 }
 
-function VendorGrid({ shortlist, setting }) {
+function VendorGrid({ shortlist, setting, catalog }) {
   const cats = ["venue", "caterer", "decorator", "entertainment", "photographer"];
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-3" data-testid="vendor-grid">
@@ -143,6 +143,7 @@ function VendorGrid({ shortlist, setting }) {
             <VendorCard
               cat={cat}
               v={v}
+              entry={catalog?.[v.id]}
               image={cat === "venue" ? VENUE_IMG[setting === "outdoor" ? "outdoor" : "indoor"] : null}
               idx={i}
             />
@@ -153,9 +154,10 @@ function VendorGrid({ shortlist, setting }) {
   );
 }
 
-function VendorCard({ cat, v, image, idx }) {
+function VendorCard({ cat, v, entry, image, idx }) {
   const Icon = CAT_ICON[cat] || MapPin;
-  const unit = v.price_unit === "per_plate" ? "/plate" : v.price_unit === "per_day" ? "/day" : "flat";
+  const unit = unitLabel(v.price_unit, cat);
+  const highlights = vendorHighlights(cat, entry);
   return (
     <div data-testid={`vendor-card-${idx}`} className="hairline bg-bg-surface rounded-sm overflow-hidden hover:border-white/25 transition-colors group">
       {image && (
@@ -187,7 +189,15 @@ function VendorCard({ cat, v, image, idx }) {
             <div className="font-mono text-[10px] text-ink-muted uppercase tracking-widest">{unit}</div>
           </div>
         </div>
-        <p className="mt-3 text-[12.5px] text-ink-secondary leading-relaxed line-clamp-3">
+        {highlights && (
+          <div
+            data-testid={`vendor-card-${idx}-highlights`}
+            className="mt-2 text-[12px] text-accent-cyan font-medium"
+          >
+            {highlights}
+          </div>
+        )}
+        <p className="mt-2 text-[12.5px] text-ink-secondary leading-relaxed line-clamp-3">
           <span className="text-accent-cyan font-mono">// </span>
           {v.reason}
         </p>

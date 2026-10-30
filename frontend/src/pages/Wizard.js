@@ -20,6 +20,15 @@ import ConsumerFooter from "../components/ConsumerFooter";
 import { api } from "../lib/api";
 import { cn, inr } from "../lib/utils";
 
+/** "5,00,000" → "five lakh", "12,50,000" → "12.5 lakh", etc. */
+function inrInWords(n) {
+  if (!n) return "";
+  if (n >= 1e7) return `${(n / 1e7).toFixed(n % 1e7 === 0 ? 0 : 2)} crore`;
+  if (n >= 1e5) return `${(n / 1e5).toFixed(n % 1e5 === 0 ? 0 : 2)} lakh`;
+  if (n >= 1e3) return `${(n / 1e3).toFixed(n % 1e3 === 0 ? 0 : 1)} thousand`;
+  return String(n);
+}
+
 const EVENT_OPTIONS = [
   { id: "wedding", label: "Wedding", icon: Heart, sub: "ceremony · reception · multi-day" },
   { id: "corporate", label: "Corporate", icon: Briefcase, sub: "conference · offsite · launch" },
@@ -40,12 +49,13 @@ const GUEST_BUCKETS = [
 
 const CITIES = ["Bangalore", "Mumbai", "Delhi"];
 
-const BUDGET_BUCKETS = [
-  { id: "1L", label: "Under ₹1 lakh", value: 80000 },
-  { id: "3L", label: "₹1 – 3 lakh", value: 200000 },
-  { id: "8L", label: "₹3 – 8 lakh", value: 600000 },
-  { id: "15L", label: "₹8 – 15 lakh", value: 1100000 },
-  { id: "15L+", label: "₹15 lakh+", value: 1800000 },
+const BUDGET_QUICKFILL = [
+  { label: "₹50k", value: 50000 },
+  { label: "₹1L", value: 100000 },
+  { label: "₹3L", value: 300000 },
+  { label: "₹5L", value: 500000 },
+  { label: "₹8L", value: 800000 },
+  { label: "₹15L", value: 1500000 },
 ];
 
 const SETTING_OPTIONS = [
@@ -64,7 +74,7 @@ export default function Wizard() {
     guests: null, // bucket object
     city: "",
     date: "",
-    budget: null, // bucket object
+    budget_inr: 0, // free numeric input (₹)
     setting: "any",
     notes: "",
   });
@@ -86,7 +96,8 @@ export default function Wizard() {
     parts.push(
       `Plan a ${data.event_type} in ${data.city} for ${data.guests.value} guests`
     );
-    if (data.budget) parts.push(`with a budget of around ${inr(data.budget.value)}`);
+    if (data.budget_inr > 0)
+      parts.push(`with a budget of ${inr(data.budget_inr)}`);
     if (data.date) parts.push(`on ${data.date}`);
     if (data.setting && data.setting !== "any") parts.push(`${data.setting} setting`);
     if (data.notes.trim()) parts.push(data.notes.trim());
@@ -144,10 +155,10 @@ export default function Wizard() {
                 )}
                 {step === 4 && (
                   <StepPrefs
-                    budget={data.budget?.id}
+                    budget_inr={data.budget_inr}
                     setting={data.setting}
                     notes={data.notes}
-                    onBudget={(b) => update({ budget: b })}
+                    onBudget={(v) => update({ budget_inr: v })}
                     onSetting={(s) => update({ setting: s })}
                     onNotes={(n) => update({ notes: n })}
                   />
@@ -381,7 +392,7 @@ function StepWhereWhen({ city, date, onCity, onDate }) {
   );
 }
 
-function StepPrefs({ budget, setting, notes, onBudget, onSetting, onNotes }) {
+function StepPrefs({ budget_inr, setting, notes, onBudget, onSetting, onNotes }) {
   return (
     <div>
       <h2 className="font-serif text-4xl md:text-5xl tracking-tight leading-tight">
@@ -390,27 +401,48 @@ function StepPrefs({ budget, setting, notes, onBudget, onSetting, onNotes }) {
       <p className="mt-3 text-slate-mid text-[14px]">All optional — skip what you don&apos;t care about.</p>
 
       <div className="mt-8">
-        <div className="font-mono text-[11px] tracking-widest uppercase text-gold-600 mb-3">budget</div>
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-          {BUDGET_BUCKETS.map((b) => {
-            const active = budget === b.id;
-            return (
-              <button
-                key={b.id}
-                type="button"
-                data-testid={`budget-${b.id}`}
-                onClick={() => onBudget(b)}
-                className={cn(
-                  "px-3 py-4 text-center border rounded-sm transition-all",
-                  active
-                    ? "border-emerald-800 bg-emerald-50"
-                    : "border-ivory-200 bg-ivory-50 hover:border-emerald-800/40"
-                )}
-              >
-                <div className="font-serif text-lg tracking-tight leading-tight">{b.label}</div>
-              </button>
-            );
-          })}
+        <div className="font-mono text-[11px] tracking-widest uppercase text-gold-600 mb-3">
+          budget <span className="text-slate-soft normal-case tracking-normal font-sans">(₹ INR · optional)</span>
+        </div>
+        <div className="relative max-w-md">
+          <span className="absolute left-4 top-1/2 -translate-y-1/2 font-serif text-2xl text-slate-mid pointer-events-none">
+            ₹
+          </span>
+          <input
+            data-testid="budget-input"
+            type="text"
+            inputMode="numeric"
+            value={budget_inr ? Number(budget_inr).toLocaleString("en-IN") : ""}
+            onChange={(e) => {
+              const raw = e.target.value.replace(/[^0-9]/g, "");
+              onBudget(raw ? parseInt(raw, 10) : 0);
+            }}
+            placeholder="e.g. 5,00,000"
+            className="w-full bg-ivory-50 border border-ivory-200 focus:border-emerald-800 outline-none pl-10 pr-4 py-4 rounded-sm text-[18px] font-serif tracking-tight"
+          />
+          {budget_inr > 0 && (
+            <div className="mt-2 text-[12.5px] text-slate-mid font-mono">
+              ≈ {inrInWords(budget_inr)}
+            </div>
+          )}
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {BUDGET_QUICKFILL.map((q) => (
+            <button
+              key={q.value}
+              type="button"
+              data-testid={`budget-quick-${q.value}`}
+              onClick={() => onBudget(q.value)}
+              className={cn(
+                "px-3 py-1.5 border rounded-full text-[12px] font-mono transition-colors",
+                budget_inr === q.value
+                  ? "border-emerald-800 bg-emerald-50 text-emerald-800"
+                  : "border-ivory-200 bg-ivory-50 text-slate-mid hover:border-emerald-800/40"
+              )}
+            >
+              {q.label}
+            </button>
+          ))}
         </div>
       </div>
 
