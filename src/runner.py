@@ -14,6 +14,7 @@ from langgraph.types import Command
 from .config import apply_langsmith_env
 from .graph import build_graph
 from .logging_utils import RunLogger, console, set_active_logger
+from .usage import start_tracking
 
 
 def _interactive_decision(payload: dict) -> str:
@@ -44,6 +45,7 @@ def run_planner(
     """
     apply_langsmith_env()
     set_active_logger(RunLogger(thread_id, echo=not quiet))
+    tracker = start_tracking()
     graph = graph or build_graph()
     decision_fn = decision_fn or _interactive_decision
     config = {"configurable": {"thread_id": thread_id}}
@@ -60,4 +62,5 @@ def run_planner(
         answer = decision_fn(payload)
         result = graph.invoke(Command(resume=answer), config)
 
+    result["usage"] = tracker.summary()
     return result

@@ -1,0 +1,13 @@
+.git
+.venv
+**/__pycache__
+**/node_modules
+frontend/build
+.env
+*.env
+runs
+data/checkpoints.sqlite*
+test_reports
+docs
+memory
+.emergent

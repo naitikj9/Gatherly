@@ -10,6 +10,7 @@ from __future__ import annotations
 from datetime import date
 
 import pytest
+from langchain_core.messages import AIMessage
 
 from src.exporters import serialize_state, to_ics, to_markdown
 from src.guardrails import validate_requirements
@@ -135,25 +136,39 @@ def _choice(vid: str) -> VendorChoice:
 
 
 class _FakeLLM:
-    """Stands in for ChatOpenAI: with_structured_output(Schema).invoke() -> canned object."""
+    """Stands in for ChatOpenAI: with_structured_output(Schema).invoke() -> canned object.
+
+    Mirrors `include_raw=True`: returns {"raw", "parsed", "parsing_error"} with
+    fake token usage, so the usage tracker has something to count.
+    """
 
     def __init__(self, outputs: dict):
         self.outputs = outputs
 
-    def with_structured_output(self, schema):
+    def with_structured_output(self, schema, include_raw=False):
         out = self.outputs[schema]
-        return type("Runnable", (), {"invoke": lambda _self, _msgs: out.model_copy(deep=True)})()
+
+        def invoke(_self, _msgs):
+            parsed = out.model_copy(deep=True)
+            if not include_raw:
+                return parsed
+            raw = AIMessage(content="", usage_metadata={
+                "input_tokens": 100, "output_tokens": 50, "total_tokens": 150})
+            return {"raw": raw, "parsed": parsed, "parsing_error": None}
+
+        return type("Runnable", (), {"invoke": invoke})()
 
 
 @pytest.fixture
 def run_graph(monkeypatch, tmp_path):
     """Run the real graph with canned LLM answers. Returns (final_state, approvals_asked)."""
-    from src import config, logging_utils
+    from src import config, llm, logging_utils
     from src.agents import intake, planner, venue
     from src.graph import build_graph
     from src.runner import run_planner
 
     monkeypatch.setattr(config, "RUNS_DIR", tmp_path)
+    monkeypatch.setattr(llm, "_sleep", lambda _s: None)
     monkeypatch.setattr(logging_utils, "RUNS_DIR", tmp_path)
 
     def _run(req: EventRequirements, shortlist: VendorShortlist, decision="approve"):

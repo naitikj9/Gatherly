@@ -11,6 +11,7 @@ graph until the person approves or declines.
 from __future__ import annotations
 
 import re
+from pathlib import Path
 
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
@@ -72,6 +73,22 @@ def _make_serializer() -> JsonPlusSerializer:
             Insights,
         ]
     )
+
+
+def make_sqlite_checkpointer(path):
+    """Durable checkpointer: paused (awaiting-approval) plans survive restarts.
+
+    The in-memory default forgets every paused run when the process restarts,
+    which would strand plans waiting for a human. SQLite keeps them on disk.
+    """
+    import sqlite3
+
+    from langgraph.checkpoint.sqlite import SqliteSaver
+
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(str(path), check_same_thread=False)
+    conn.execute("PRAGMA journal_mode=WAL")  # readers don't block the writer
+    return SqliteSaver(conn, serde=_make_serializer())
 
 
 # terminal / control nodes

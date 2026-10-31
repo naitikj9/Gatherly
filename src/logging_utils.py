@@ -9,11 +9,13 @@ from __future__ import annotations
 import json
 import sys
 from datetime import datetime
-from typing import Any
+from contextvars import ContextVar
+from typing import Any, Optional
 
 from rich.console import Console
 
 from .config import RUNS_DIR
+from .guardrails import redact_pii
 
 # Windows terminals often default to cp1252, which can't encode symbols like ₹.
 # Force UTF-8 on the standard streams so output doesn't crash on those.
@@ -46,26 +48,29 @@ class RunLogger:
             "message": message,
             "data": _safe(data),
         }
+        # traces outlive the run, so personal details never reach disk
+        line = redact_pii(json.dumps(record, ensure_ascii=False))
         with self.path.open("a", encoding="utf-8") as fh:
-            fh.write(json.dumps(record, ensure_ascii=False) + "\n")
+            fh.write(line + "\n")
         return f"[{node}] {message}"
 
 
 # We keep one "active" logger per run instead of putting it in the graph state,
 # because the state gets serialized by the checkpointer and a logger object
-# isn't serialisable.
-_active: RunLogger | None = None
+# isn't serialisable. It lives in a ContextVar so concurrent API requests never
+# write into each other's trace (asyncio.to_thread copies the context).
+_active: ContextVar[Optional[RunLogger]] = ContextVar("gatherly_run_logger", default=None)
 
 
 def set_active_logger(logger: RunLogger) -> None:
-    global _active
-    _active = logger
+    _active.set(logger)
 
 
 def log_step(node: str, message: str, data: Any | None = None) -> str:
     """Log via the active run logger (or just print if none is set)."""
-    if _active is not None:
-        return _active.step(node, message, data)
+    logger = _active.get()
+    if logger is not None:
+        return logger.step(node, message, data)
     console.print(f"[bold cyan]{node}[/bold cyan]: {message}")
     return f"[{node}] {message}"
 

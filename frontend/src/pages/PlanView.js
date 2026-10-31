@@ -129,8 +129,6 @@ function PlanContent({ state, planId, catalog }) {
     state.status === "refused" ||
     state.status === "rejected" ||
     state.status === "declined";
-  const isBooked = state.status === "booked";
-  const isAwait = state.status === "awaiting_approval";
 
   return (
     <div data-testid="plan-content">

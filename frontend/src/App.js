@@ -5,6 +5,7 @@ import Wizard from "./pages/Wizard";
 import PlanView from "./pages/PlanView";
 import About from "./pages/About";
 import AdminDashboard from "./pages/AdminDashboard";
+import AdminGate from "./components/AdminGate";
 
 export default function App() {
   return (
@@ -17,7 +18,7 @@ export default function App() {
         <Route path="/about" element={<About />} />
 
         {/* Internal / agent console */}
-        <Route path="/admin" element={<AdminDashboard />} />
+        <Route path="/admin" element={<AdminGate><AdminDashboard /></AdminGate>} />
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

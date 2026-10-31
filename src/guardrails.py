@@ -6,6 +6,7 @@ compliance (capacity check).
 """
 from __future__ import annotations
 
+import re
 from typing import List
 
 from .config import settings
@@ -19,8 +20,47 @@ _UNSAFE_TERMS = [
 ]
 
 
+# attempts to hijack the agents' instructions (prompt injection)
+_INJECTION_PATTERNS = [
+    re.compile(p, re.I)
+    for p in (
+        r"\b(ignore|disregard|forget|override)\b.{0,40}\b(previous|prior|above|earlier|all|your)\b.{0,20}\b(instructions?|rules?|prompts?|guidelines?)",
+        r"\b(reveal|print|show|repeat|leak)\b.{0,30}\b(system|hidden|developer)\s+(prompt|message|instructions?)",
+        r"\byou\s+are\s+now\b",
+        r"\b(developer|god|jailbreak|dan)\s+mode\b",
+        r"\bact\s+as\b.{0,30}\b(unrestricted|unfiltered|admin|root)\b",
+        r"\b(set|mark|make)\b.{0,30}\b(status|decision)\b.{0,20}\b(booked|approved?|approve_auto)\b",
+        r"</?\s*(system|assistant|instructions?)\s*>",
+    )
+]
+
+_PII_PATTERNS = [
+    (re.compile(r"[\w.+-]+@[\w-]+\.[\w.]+"), "[email]"),
+    (re.compile(r"(?<!\d)(?:\+?91[\s-]?)?[6-9]\d{4}[\s-]?\d{5}(?!\d)"), "[phone]"),
+    (re.compile(r"(?<!\d)\d{4}\s?\d{4}\s?\d{4}(?!\d)"), "[id-number]"),  # Aadhaar-like
+]
+
+
+def detect_injection(text: str) -> bool:
+    """True if the text tries to override the agents' instructions."""
+    return any(p.search(text or "") for p in _INJECTION_PATTERNS)
+
+
+def redact_pii(text: str) -> str:
+    """Mask emails, Indian phone numbers and 12-digit ID numbers (for logs/traces)."""
+    for pattern, mask in _PII_PATTERNS:
+        text = pattern.sub(mask, text)
+    return text
+
+
 def screen_request(text: str) -> str | None:
     """Return a refusal reason if the request is unsafe/out of scope, else None."""
+    if len(text or "") > settings.MAX_REQUEST_CHARS:
+        return (f"That request is too long. Please describe your event in under "
+                f"{settings.MAX_REQUEST_CHARS} characters.")
+    if detect_injection(text):
+        return ("This request looks like an attempt to change how the planner works, "
+                "so I can't process it. Please just describe your event.")
     lowered = text.lower()
     for term in _UNSAFE_TERMS:
         if term in lowered:

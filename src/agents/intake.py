@@ -9,7 +9,7 @@ from __future__ import annotations
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from ..guardrails import screen_request
-from ..llm import get_chat_llm
+from ..llm import get_chat_llm, invoke_structured
 from ..logging_utils import log_step
 from ..schemas import EventRequirements
 from ..state import PlannerState
@@ -43,9 +43,9 @@ def intake_node(state: PlannerState) -> dict:
         msg = log_step("intake", "Request blocked by safety screen.", req)
         return {"requirements": req, "log": [msg]}
 
-    structured_llm = get_chat_llm().with_structured_output(EventRequirements)
-    req: EventRequirements = structured_llm.invoke(
-        [SystemMessage(content=_SYSTEM), HumanMessage(content=request)]
+    req: EventRequirements = invoke_structured(
+        get_chat_llm(), EventRequirements,
+        [SystemMessage(content=_SYSTEM), HumanMessage(content=request)], agent="intake",
     )
 
     # normalize "Dec 18" / "next Saturday" to ISO so availability + checklist work

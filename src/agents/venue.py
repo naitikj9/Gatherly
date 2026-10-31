@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from ..llm import get_chat_llm
+from ..llm import get_chat_llm, invoke_structured
 from ..logging_utils import log_step
 from ..schemas import EventRequirements, VendorChoice, VendorShortlist
 from ..state import PlannerState
@@ -77,9 +77,9 @@ def research_node(state: PlannerState) -> dict:
         f"CANDIDATES:\n{candidate_block}\n\n"
         "Choose the best vendor per category following the hard rules."
     )
-    structured_llm = get_chat_llm().with_structured_output(VendorShortlist)
-    shortlist: VendorShortlist = structured_llm.invoke(
-        [SystemMessage(content=_SYSTEM), HumanMessage(content=human)]
+    shortlist: VendorShortlist = invoke_structured(
+        get_chat_llm(), VendorShortlist,
+        [SystemMessage(content=_SYSTEM), HumanMessage(content=human)], agent="venue",
     )
 
     # 3) verify prices/names against the catalog

@@ -31,6 +31,32 @@ choices to work with.
 
 ---
 
+## 🛡️ Production-ready API (Gatherly 2.1)
+
+| Area | What you get | Where |
+|---|---|---|
+| 💾 **Durable approvals** | Plans waiting for a human are checkpointed to SQLite, so a server restart no longer loses them. | `src/graph.py` (`make_sqlite_checkpointer`) |
+| 🔐 **Admin auth** | Approve/decline, delete and the plan list need `ADMIN_TOKEN` (constant-time check). The web console asks for it once per tab. | `backend/core/security.py`, `frontend/src/components/AdminGate.js` |
+| 🚦 **Rate limiting + concurrency cap** | A sliding-window limit per IP on plan creation (`429` + `Retry-After`), a cap on concurrent graph runs, and a timeout per run. | `backend/core/security.py`, `backend/server.py` |
+| 🔁 **Idempotency keys** | Send `Idempotency-Key` and a retried POST returns the original plan instead of paying for a second LLM run. | `backend/server.py`, `backend/core/storage.py` |
+| 🧯 **LLM resilience** | Retries with exponential backoff and jitter on network, timeout, rate-limit and 5xx errors and on schema mismatches; a bad key fails fast and returns a clean `503`. | `src/llm.py` (`invoke_structured`) |
+| 💸 **Token + cost tracking** | Every plan records LLM calls, tokens per agent and estimated USD cost. | `src/usage.py` |
+| 🧱 **Prompt-injection guard** | "Ignore previous instructions…"-style requests are refused before any LLM call. | `src/guardrails.py` |
+| 🙈 **PII redaction** | Phone numbers, emails and Aadhaar-like numbers are masked before traces are written to disk. | `src/guardrails.py`, `src/logging_utils.py` |
+| 📈 **Observability** | `X-Request-ID` on every response, one JSON log line per request, Prometheus `/api/metrics`, and a `/api/ready` readiness probe. | `backend/core/observability.py` |
+| 🗄️ **Pluggable storage** | MongoDB in production, with an automatic in-memory fallback so the API runs with zero setup. | `backend/core/storage.py` |
+| 🐳 **Docker + CI** | `docker compose up` runs MongoDB, the API and the web app. GitHub Actions runs the tests, a strict web build and both Docker builds. | `docker-compose.yml`, `.github/workflows/ci.yml` |
+
+```bash
+# whole stack
+export OPENAI_API_KEY=sk-...
+export ADMIN_TOKEN=$(python -c "import secrets; print(secrets.token_hex(24))")
+docker compose up --build        # web: http://localhost:3000  api: http://localhost:8001
+
+# all tests (no API key, no database needed)
+python -m pytest -q
+```
+
 ## 1. The problem & why it needs multiple agents
 
 Planning an event is not one question — it is a **pipeline of different skills**:
@@ -157,6 +183,7 @@ gatherly/
 │   └── tools/                   # RAG, budget, availability, weather, dates, checklist, packages
 ├── tests/test_cases.py          # evaluation harness (8 scenarios, real LLM)
 ├── tests/test_offline.py        # 27 offline tests (fake LLM)
+├── tests/test_api.py            # 14 API tests: auth, rate limits, idempotency, restarts
 └── docs/
     ├── ARCHITECTURE.md          # deep dive
     ├── PRESENTATION.md          # 10-minute talk script

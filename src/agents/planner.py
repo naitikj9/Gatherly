@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from ..llm import get_chat_llm
+from ..llm import get_chat_llm, invoke_structured
 from ..logging_utils import log_step
 from ..schemas import BudgetLine, EventPlan, EventRequirements, VendorShortlist
 from ..state import PlannerState
@@ -49,9 +49,9 @@ def planner_node(state: PlannerState) -> dict:
         f"{req.guest_count} guests.\nChosen vendors: {chosen}\n"
         "Write the day-of timeline and a short summary."
     )
-    structured_llm = get_chat_llm(temperature=0.3).with_structured_output(EventPlan)
-    drafted: EventPlan = structured_llm.invoke(
-        [SystemMessage(content=_SYSTEM), HumanMessage(content=human)]
+    drafted: EventPlan = invoke_structured(
+        get_chat_llm(temperature=0.3), EventPlan,
+        [SystemMessage(content=_SYSTEM), HumanMessage(content=human)], agent="planner",
     )
 
     # stitch the deterministic budget onto the LLM's timeline/summary

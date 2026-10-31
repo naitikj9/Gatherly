@@ -38,6 +38,13 @@ class Settings:
     MIN_BUDGET_INR: int = 10000
     OPTIMIZER_MAX_ATTEMPTS: int = 2  # how many times the budget optimizer may loop
 
+    # LLM resilience + cost tracking
+    LLM_MAX_ATTEMPTS: int = int(os.getenv("LLM_MAX_ATTEMPTS", "3"))
+    # USD per 1M tokens; defaults are gpt-4o-mini list prices
+    PRICE_INPUT_PER_M: float = float(os.getenv("LLM_PRICE_INPUT_PER_M", "0.15"))
+    PRICE_OUTPUT_PER_M: float = float(os.getenv("LLM_PRICE_OUTPUT_PER_M", "0.60"))
+    MAX_REQUEST_CHARS: int = 2000
+
 
 settings = Settings()
 

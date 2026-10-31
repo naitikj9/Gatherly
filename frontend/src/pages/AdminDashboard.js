@@ -48,6 +48,9 @@ export default function AdminDashboard() {
   const [catalog, setCatalog] = useState({}); // id → full vendor entry
   const [freshIds, setFreshIds] = useState(new Set()); // recently-arrived plan ids (highlight)
   const knownIdsRef = useRef(null); // null on first load → don't toast
+  // the polling effect below reads the latest handler through a ref, so it
+  // doesn't restart every render
+  const pickPlanRef = useRef(null);
   const beepRef = useRef(makeBeep());
   const resultsRef = useRef(null);
 
@@ -103,7 +106,7 @@ export default function AdminDashboard() {
                     plan={a}
                     onView={() => {
                       toast.dismiss(t);
-                      handlePickPlan(a.plan_id);
+                      pickPlanRef.current?.(a.plan_id);
                     }}
                     onDismiss={() => toast.dismiss(t)}
                   />
@@ -190,6 +193,7 @@ export default function AdminDashboard() {
       setError(e.message);
     }
   };
+  pickPlanRef.current = handlePickPlan;
 
   const logsForUI =
     state?.stream_logs && state.stream_logs.length > 0
