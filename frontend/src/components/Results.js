@@ -198,7 +198,7 @@ function VendorCard({ cat, v, entry, image, idx }) {
           </div>
         )}
         <p className="mt-2 text-[12.5px] text-ink-secondary leading-relaxed line-clamp-3">
-          <span className="text-accent-cyan font-mono">// </span>
+          <span className="text-accent-cyan font-mono">{"// "}</span>
           {v.reason}
         </p>
       </div>

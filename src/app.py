@@ -35,6 +35,11 @@ def main() -> None:
     console.print(f"[bold]Status:[/bold] {result.get('status', 'unknown')}\n")
     console.print(result.get("final_message", "(no message)"))
 
+    usage = result.get("usage") or {}
+    if usage.get("llm_calls"):
+        console.print(f"\n[dim]LLM: {usage['llm_calls']} calls, {usage['total_tokens']:,} tokens, "
+                      f"~${usage['estimated_cost_usd']:.4f}[/dim]")
+
     if result.get("status") == "booked":
         _export(result, run_id)
 

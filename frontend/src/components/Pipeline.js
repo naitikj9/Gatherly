@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from "react";
-import { motion } from "framer-motion";
 import { FileText, Search, CalendarRange, ShieldCheck, Gauge, Wand2 } from "lucide-react";
 import { cn } from "../lib/utils";
 
@@ -46,7 +45,7 @@ function computeNodeStates(state, logs, running) {
 }
 
 export default function Pipeline({ state, logs, running, architecture }) {
-  const [tick, setTick] = useState(0);
+  const [, setTick] = useState(0); // re-render while running
   useEffect(() => {
     if (!running) return;
     const t = setInterval(() => setTick((x) => x + 1), 300);

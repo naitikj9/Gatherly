@@ -34,3 +34,4 @@ credentials.json
 # Frontend
 node_modules/
 frontend/build/
+data/checkpoints.sqlite*
