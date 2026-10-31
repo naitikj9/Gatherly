@@ -33,15 +33,20 @@ def _presented_token(request: Request) -> str:
     return token.strip()
 
 
+def is_admin(request: Request, expected: str) -> bool:
+    """True if the request carries the admin token (or none is configured: dev mode)."""
+    if not expected:
+        return True
+    presented = _presented_token(request)
+    # constant-time compare so the token can't be guessed byte by byte
+    return bool(presented) and hmac.compare_digest(presented.encode(), expected.encode())
+
+
 def admin_guard(expected: str) -> Callable[[Request], None]:
     """FastAPI dependency. With no token configured, admin access is open (dev mode)."""
 
     def check(request: Request) -> None:
-        if not expected:
-            return
-        presented = _presented_token(request)
-        # constant-time compare so the token can't be guessed byte by byte
-        if not presented or not hmac.compare_digest(presented.encode(), expected.encode()):
+        if not is_admin(request, expected):
             raise HTTPException(
                 status_code=401,
                 detail="Admin token required.",
@@ -79,13 +84,14 @@ class RateLimiter:
             return None
 
 
-def rate_limit_guard(limiter: RateLimiter, trust_proxy: bool) -> Callable[[Request], None]:
+def rate_limit_guard(limiter: RateLimiter, trust_proxy: bool,
+                     what: str = "plan requests") -> Callable[[Request], None]:
     def check(request: Request) -> None:
         retry_after = limiter.hit(client_ip(request, trust_proxy))
         if retry_after is not None:
             raise HTTPException(
                 status_code=429,
-                detail=f"Too many plan requests. Try again in {retry_after}s.",
+                detail=f"Too many {what}. Try again in {retry_after}s.",
                 headers={"Retry-After": str(retry_after)},
             )
 

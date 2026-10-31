@@ -21,6 +21,8 @@ import {
 import ConsumerNav from "../components/ConsumerNav";
 import ConsumerFooter from "../components/ConsumerFooter";
 import PlanInsights from "../components/PlanInsights";
+import WhatIf from "../components/WhatIf";
+import GuestRsvp from "../components/GuestRsvp";
 import { api } from "../lib/api";
 import { cn, inr, unitLabel, vendorHighlights } from "../lib/utils";
 
@@ -155,6 +157,14 @@ function PlanContent({ state, planId, catalog }) {
           </div>
           <div className="mt-6">
             <PlanInsights state={state} planId={planId} theme="light" />
+          </div>
+          <div className="mt-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <div className="lg:col-span-8">
+              <WhatIf planId={planId} requirements={state.requirements} />
+            </div>
+            <div className="lg:col-span-4">
+              <GuestRsvp planId={planId} />
+            </div>
           </div>
         </>
       )}

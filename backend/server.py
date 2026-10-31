@@ -2,12 +2,17 @@
 
 Exposes the LangGraph engine in /src as REST endpoints:
   POST   /api/plans                      -> run a plan (rate limited, Idempotency-Key aware)
+  POST   /api/plans/stream               -> same, streamed live as Server-Sent Events
   POST   /api/plans/{plan_id}/decision   -> resume from human approval      [admin]
   GET    /api/plans/{plan_id}            -> fetch a saved plan
   GET    /api/plans                      -> list recent plans (history)      [admin]
   DELETE /api/plans/{plan_id}            -> delete a saved plan              [admin]
   GET    /api/plans/{plan_id}/export.ics -> calendar file (event + checklist)
   GET    /api/plans/{plan_id}/export.md  -> Markdown plan document
+  POST   /api/plans/{plan_id}/whatif     -> re-price for new guests/budget (no LLM)
+  GET    /api/plans/{plan_id}/invite     -> public event card for the RSVP page
+  POST   /api/plans/{plan_id}/rsvp       -> a guest answers the invite (rate limited)
+  GET    /api/plans/{plan_id}/rsvps      -> headcount summary (+ names for admins)
   GET    /api/vendors                    -> full catalog
   GET    /api/sample-prompts             -> demo prompts
   GET    /api/architecture               -> static graph definition (for UI viz)
@@ -23,17 +28,18 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import json
 import logging
 import sys
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Literal, Optional
 
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, PlainTextResponse, Response
+from fastapi.responses import JSONResponse, PlainTextResponse, Response, StreamingResponse
 from pydantic import BaseModel, Field
 
 # Load env BEFORE importing src modules (their config reads env at import time)
@@ -56,7 +62,7 @@ from core.observability import (  # noqa: E402
     request_id_var,
     setup_logging,
 )
-from core.security import RateLimiter, admin_guard, rate_limit_guard  # noqa: E402
+from core.security import RateLimiter, admin_guard, is_admin, rate_limit_guard  # noqa: E402
 from core.settings import ApiSettings  # noqa: E402
 from core.storage import PlanStore, make_store, summarize  # noqa: E402
 from src.config import settings as engine_settings  # noqa: E402
@@ -65,6 +71,7 @@ from src.graph import build_graph, make_sqlite_checkpointer  # noqa: E402
 from src.logging_utils import RunLogger, set_active_logger  # noqa: E402
 from src.tools.retrieval import load_catalog  # noqa: E402
 from src.usage import start_tracking  # noqa: E402
+from src.whatif import simulate  # noqa: E402
 
 
 # ---------------------------------------------------------------- Schemas
@@ -76,18 +83,70 @@ class DecisionRequest(BaseModel):
     decision: str = Field(..., description="'approve' or 'decline'")
 
 
-class _StreamLogger(RunLogger):
-    """RunLogger that also keeps each step in memory for the API response."""
+class WhatIfRequest(BaseModel):
+    guest_count: Optional[int] = Field(default=None, ge=1, le=5000)
+    budget_inr: Optional[int] = Field(default=None, ge=0, le=1_000_000_000)
+    setting: Optional[Literal["indoor", "outdoor", "any"]] = None
 
-    def __init__(self, run_id: str, sink: List[Dict[str, Any]]) -> None:
+
+class RsvpRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=80)
+    attending: bool
+    plus_ones: int = Field(default=0, ge=0, le=5)
+    diet: Literal["veg", "non-veg", "any"] = "any"
+    note: str = Field(default="", max_length=200)
+
+
+MAX_RSVPS_PER_PLAN = 2000
+CLOSED_STATUSES = {"refused", "rejected", "declined"}
+
+
+class _StreamLogger(RunLogger):
+    """RunLogger that also keeps each step in memory for the API response.
+
+    `on_step` (optional) is called from the worker thread for every step; that
+    is how /api/plans/stream pushes agent progress to the browser live.
+    """
+
+    def __init__(self, run_id: str, sink: List[Dict[str, Any]],
+                 on_step: Optional[Callable[[dict], None]] = None) -> None:
         super().__init__(run_id, echo=False)
         self.sink = sink
+        self.on_step = on_step
 
     def step(self, node: str, message: str, data: Any | None = None) -> str:  # type: ignore[override]
         result = super().step(node, message, data)
-        self.sink.append({"ts": datetime.now(timezone.utc).isoformat(), "node": node,
-                          "message": message})
+        entry = {"ts": datetime.now(timezone.utc).isoformat(), "node": node, "message": message}
+        self.sink.append(entry)
+        if self.on_step:
+            self.on_step(entry)
         return result
+
+
+def _sse(event: str, data: Any) -> str:
+    return f"event: {event}\ndata: {json.dumps(data, default=str)}\n\n"
+
+
+def _rsvp_summary(state: dict, rows: List[dict]) -> dict:
+    """Headcount vs. the planned guest count, and the diet split for the caterer."""
+    yes = [r for r in rows if r.get("attending")]
+    planned = int((state.get("requirements") or {}).get("guest_count") or 0)
+    diet = {"veg": 0, "non-veg": 0, "any": 0}
+    headcount = 0
+    for r in yes:
+        party = 1 + int(r.get("plus_ones") or 0)
+        headcount += party
+        diet[r.get("diet") or "any"] = diet.get(r.get("diet") or "any", 0) + party
+    return {
+        "responses": len(rows),
+        "attending": len(yes),
+        "not_attending": len(rows) - len(yes),
+        "headcount": headcount,
+        "planned_guests": planned,
+        "fill_pct": round(100 * headcount / planned) if planned else None,
+        "over_capacity": bool(planned) and headcount > planned,
+        "diet": diet,
+    }
 
 
 # ---------------------------------------------------------------- Helpers
@@ -157,7 +216,10 @@ def create_app(
 
     require_admin = admin_guard(cfg.admin_token)
     limit_plans = rate_limit_guard(RateLimiter(cfg.rate_limit_per_minute), cfg.trust_proxy)
+    limit_rsvps = rate_limit_guard(RateLimiter(cfg.rsvp_rate_limit_per_minute), cfg.trust_proxy,
+                                   what="RSVPs from this network")
     run_slots = asyncio.Semaphore(cfg.max_concurrent_runs)
+    background: set = set()  # streamed runs that outlive their HTTP connection
 
     @app.exception_handler(Exception)
     async def unhandled(request: Request, exc: Exception):  # pragma: no cover - safety net
@@ -165,13 +227,14 @@ def create_app(
         return JSONResponse(status_code=500, content={
             "detail": "Internal error.", "request_id": request_id_var.get()})
 
-    async def run_graph(plan_id: str, payload, logs: List[Dict[str, Any]]):
+    async def run_graph(plan_id: str, payload, logs: List[Dict[str, Any]],
+                        on_step: Optional[Callable[[dict], None]] = None):
         """Run the blocking graph in a worker thread, bounded and with a timeout.
 
         Engine/LLM failures become clean 5xx responses; details go to the log,
         never to the client.
         """
-        set_active_logger(_StreamLogger(plan_id, logs))
+        set_active_logger(_StreamLogger(plan_id, logs, on_step))
         tracker = start_tracking()
         config = {"configurable": {"thread_id": plan_id}}
         try:
@@ -322,13 +385,18 @@ def create_app(
                     headers={"Idempotent-Replay": "true"},
                 )
 
+        return await new_plan(plan_id, body.request)
+
+    async def new_plan(plan_id: str, request_text: str,
+                       on_step: Optional[Callable[[dict], None]] = None) -> dict:
         logs: List[Dict[str, Any]] = []
-        result, usage = await run_graph(plan_id, {"user_request": body.request, "log": []}, logs)
+        result, usage = await run_graph(plan_id, {"user_request": request_text, "log": []},
+                                        logs, on_step)
         state = shape(result)
         metrics.inc("gatherly_plans_total", status=state.get("status") or "unknown")
 
         await store.upsert(plan_id, {
-            "request": body.request,
+            "request": request_text,
             "created_at": datetime.now(timezone.utc).isoformat(),
             "state": state,
             "stream_logs": logs,
@@ -337,6 +405,51 @@ def create_app(
         log_event(logger, "plan created", plan_id=plan_id, status=state.get("status"),
                   tokens=usage["total_tokens"], cost_usd=usage["estimated_cost_usd"])
         return {"plan_id": plan_id, **state, "stream_logs": logs, "usage": usage}
+
+    @app.post("/api/plans/stream", dependencies=[Depends(limit_plans)])
+    async def create_plan_stream(body: PlanRequest) -> StreamingResponse:
+        """Run a plan and stream each agent step as it happens (Server-Sent Events).
+
+        Events: `start` {plan_id}, then `step` {node, message, ts} per agent step,
+        then exactly one of `done` (the full plan, same shape as POST /api/plans)
+        or `error` {status, detail}.
+        """
+        plan_id = f"plan-{uuid.uuid4().hex[:12]}"
+        loop = asyncio.get_running_loop()
+        queue: asyncio.Queue = asyncio.Queue()
+
+        def on_step(entry: dict) -> None:  # called from the worker thread
+            loop.call_soon_threadsafe(queue.put_nowait, ("step", entry))
+
+        async def run() -> None:
+            try:
+                await queue.put(("done", await new_plan(plan_id, body.request, on_step)))
+            except HTTPException as e:
+                await queue.put(("error", {"status": e.status_code, "detail": e.detail}))
+            except Exception as e:  # pragma: no cover - safety net
+                log_event(logger, "stream failure", logging.ERROR, error=repr(e))
+                await queue.put(("error", {"status": 500, "detail": "Internal error."}))
+
+        async def events():
+            # if the browser disconnects, the run still finishes and is saved,
+            # so the plan can be fetched later with GET /api/plans/{plan_id}
+            task = asyncio.create_task(run())
+            background.add(task)  # keep a reference so the task isn't garbage-collected
+            task.add_done_callback(background.discard)
+            yield _sse("start", {"plan_id": plan_id})
+            while True:
+                try:
+                    kind, data = await asyncio.wait_for(queue.get(), timeout=15)
+                except asyncio.TimeoutError:
+                    yield ": keep-alive\n\n"  # stops proxies closing an idle stream
+                    continue
+                yield _sse(kind, data)
+                if kind in ("done", "error"):
+                    break
+
+        metrics.inc("gatherly_streams_total")
+        return StreamingResponse(events(), media_type="text/event-stream", headers={
+            "Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
     @app.post("/api/plans/{plan_id}/decision", dependencies=[Depends(require_admin)])
     async def submit_decision(plan_id: str, body: DecisionRequest) -> dict:
@@ -406,6 +519,70 @@ def create_app(
             media_type="text/markdown; charset=utf-8",
             headers={"Content-Disposition": f'attachment; filename="gatherly-{plan_id}.md"'},
         )
+
+    # ------------------------------------------------ what-if simulator
+    @app.post("/api/plans/{plan_id}/whatif")
+    async def what_if(plan_id: str, body: WhatIfRequest) -> dict:
+        """Re-price the plan for a new guest count / budget / setting. No LLM calls."""
+        state = await _load_state(plan_id)
+        try:
+            result = await asyncio.to_thread(
+                simulate, state, body.guest_count, body.budget_inr, body.setting)
+        except ValueError as e:
+            raise HTTPException(status_code=422, detail=str(e))
+        metrics.inc("gatherly_whatif_total")
+        return {"plan_id": plan_id, **result}
+
+    # ------------------------------------------------ guest RSVPs
+    @app.get("/api/plans/{plan_id}/invite")
+    async def invite(plan_id: str) -> dict:
+        """Only what a guest needs: no budget, prices or the original request text."""
+        state = await _load_state(plan_id)
+        req = state.get("requirements") or {}
+        ins = state.get("insights") or {}
+        venue = (state.get("shortlist") or {}).get("venue") or {}
+        return {
+            "plan_id": plan_id,
+            "event_type": req.get("event_type"),
+            "city": req.get("city"),
+            "event_date": ins.get("event_date_iso") or req.get("event_date"),
+            "weekday": ins.get("weekday"),
+            "days_until": ins.get("days_until"),
+            "venue": venue.get("name"),
+            "timeline": ((state.get("plan") or {}).get("timeline") or [])[:8],
+            "open": state.get("status") not in CLOSED_STATUSES,
+        }
+
+    @app.post("/api/plans/{plan_id}/rsvp", dependencies=[Depends(limit_rsvps)])
+    async def rsvp(plan_id: str, body: RsvpRequest) -> dict:
+        state = await _load_state(plan_id)
+        if state.get("status") in CLOSED_STATUSES:
+            raise HTTPException(status_code=409, detail="This event is not taking RSVPs.")
+        name = " ".join(body.name.split())
+        if not name:
+            raise HTTPException(status_code=422, detail="Please enter your name.")
+        if await store.count_rsvps(plan_id) >= MAX_RSVPS_PER_PLAN:
+            raise HTTPException(status_code=409, detail="This guest list is full.")
+        created = await store.upsert_rsvp(plan_id, {
+            "name": name,
+            "attending": body.attending,
+            "plus_ones": body.plus_ones if body.attending else 0,
+            "diet": body.diet,
+            "note": body.note.strip(),
+        })
+        metrics.inc("gatherly_rsvps_total", attending=str(body.attending).lower())
+        return {"ok": True, "updated": not created,
+                "summary": _rsvp_summary(state, await store.list_rsvps(plan_id))}
+
+    @app.get("/api/plans/{plan_id}/rsvps")
+    async def list_rsvps(plan_id: str, request: Request) -> dict:
+        """Counts for everyone; guest names and notes only for admins."""
+        state = await _load_state(plan_id)
+        rows = await store.list_rsvps(plan_id)
+        out = {"plan_id": plan_id, "summary": _rsvp_summary(state, rows)}
+        if is_admin(request, cfg.admin_token):
+            out["responses"] = rows
+        return out
 
     return app
 
