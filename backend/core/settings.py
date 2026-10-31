@@ -41,6 +41,8 @@ class ApiSettings:
     trust_proxy: bool = field(default_factory=lambda: os.getenv("TRUST_PROXY", "false").lower() == "true")
 
     rate_limit_per_minute: int = field(default_factory=lambda: _int("RATE_LIMIT_PER_MINUTE", 10))
+    rsvp_rate_limit_per_minute: int = field(
+        default_factory=lambda: _int("RSVP_RATE_LIMIT_PER_MINUTE", 30))
     max_concurrent_runs: int = field(default_factory=lambda: _int("MAX_CONCURRENT_RUNS", 4))
     run_timeout_seconds: int = field(default_factory=lambda: _int("RUN_TIMEOUT_SECONDS", 120))
 

@@ -80,6 +80,7 @@ export default function Wizard() {
   });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
+  const [steps, setSteps] = useState([]); // live agent progress while planning
 
   const canProceed = useMemo(() => {
     if (step === 1) return !!data.event_type;
@@ -107,8 +108,11 @@ export default function Wizard() {
   const submit = async () => {
     setSubmitting(true);
     setError(null);
+    setSteps([]);
     try {
-      const res = await api.createPlan(buildPrompt());
+      const res = await api.streamPlan(buildPrompt(), {
+        onStep: (s) => setSteps((prev) => [...prev, s]),
+      });
       nav(`/plan/${res.plan_id}`, { state: { initial: res } });
     } catch (e) {
       setError(e?.response?.data?.detail || e.message);
@@ -176,6 +180,8 @@ export default function Wizard() {
             </div>
           )}
 
+          {submitting && <LiveProgress steps={steps} />}
+
           <div className="mt-10 flex items-center justify-between border-t border-ivory-200 pt-6">
             <button
               type="button"
@@ -221,6 +227,66 @@ export default function Wizard() {
       </div>
 
       <ConsumerFooter />
+    </div>
+  );
+}
+
+const AGENT_STAGES = [
+  { id: "intake", label: "Reading your brief" },
+  { id: "research", label: "Finding venues & vendors" },
+  { id: "planner", label: "Drafting the timeline & budget" },
+  { id: "insights", label: "Checking weather & building your checklist" },
+  { id: "compliance", label: "Final safety & budget review" },
+];
+
+/** Shows which agent is working right now, streamed live from the backend. */
+function LiveProgress({ steps }) {
+  const seen = new Set(steps.map((s) => (s.node === "venue" ? "research" : s.node)));
+  const optimizing = seen.has("optimizer");
+  const activeIdx = AGENT_STAGES.findIndex((st) => !seen.has(st.id));
+  const latest = steps[steps.length - 1];
+  return (
+    <div
+      data-testid="wizard-live-progress"
+      className="mt-8 border border-ivory-200 bg-white/60 rounded-sm px-5 py-4"
+      aria-live="polite"
+    >
+      <p className="text-[11px] font-mono tracking-[0.2em] uppercase text-gold-600 mb-3">
+        Your planning team is on it
+      </p>
+      <ol className="space-y-2">
+        {AGENT_STAGES.map((st, i) => {
+          const done = seen.has(st.id) && i !== activeIdx;
+          const active = i === activeIdx;
+          return (
+            <li key={st.id} className="flex items-center gap-2.5 text-[13px]">
+              <span
+                className={cn(
+                  "w-4 h-4 grid place-items-center rounded-full border shrink-0",
+                  done && "bg-emerald-800 border-emerald-800 text-ivory-50",
+                  active && "border-emerald-800",
+                  !done && !active && "border-ivory-200"
+                )}
+              >
+                {done ? <Check size={10} /> : active ? <Loader2 size={10} className="animate-spin text-emerald-800" /> : null}
+              </span>
+              <span className={cn(done ? "text-slate-ink" : active ? "text-emerald-800 font-medium" : "text-slate-soft")}>
+                {st.label}
+              </span>
+            </li>
+          );
+        })}
+      </ol>
+      {optimizing && (
+        <p className="mt-3 text-[12px] text-gold-600">
+          Over budget, so we're swapping in better-value vendors…
+        </p>
+      )}
+      {latest && (
+        <p className="mt-3 text-[12px] text-slate-mid font-mono truncate" title={latest.message}>
+          {latest.message}
+        </p>
+      )}
     </div>
   );
 }

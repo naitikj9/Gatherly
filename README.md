@@ -57,6 +57,20 @@ docker compose up --build        # web: http://localhost:3000  api: http://local
 python -m pytest -q
 ```
 
+## 🎉 Live planning, what-if & RSVPs (Gatherly 2.2)
+
+| Feature | What it does | Where |
+|---|---|---|
+| ⚡ **Live agent streaming** | `POST /api/plans/stream` sends each agent step to the browser over Server-Sent Events as it happens. The wizard shows "your planning team is on it" step by step, and the admin pipeline lights up node by node. If the browser disconnects, the run still finishes and is saved. | `backend/server.py`, `frontend/src/lib/api.js` (`streamPlan`) |
+| 🎛️ **What-if simulator** | Sliders for guests, budget and setting re-price the plan instantly: the current vendors at the new headcount, whether the venue still fits, and fresh Lean / Balanced / Luxe packages, with a "best fit" pick. Pure math, no LLM calls. | `src/whatif.py`, `frontend/src/components/WhatIf.js` |
+| 💌 **Guest RSVPs** | One shareable invite link (`/invite/:planId`). Guests accept or decline, add plus-ones and a food preference. The host sees a live headcount against the plan and a veg / non-veg split for the caterer. A guest who answers again updates their RSVP instead of being counted twice. Guest names are visible to admins only, and RSVPs are rate limited per IP. | `backend/server.py`, `frontend/src/pages/Invite.js`, `frontend/src/components/GuestRsvp.js` |
+
+```bash
+# watch a plan stream live
+curl -N -X POST localhost:8001/api/plans/stream -H "Content-Type: application/json" \
+  -d '{"request": "Plan a wedding in Bangalore for 150 guests, budget 8 lakh"}'
+```
+
 ## 1. The problem & why it needs multiple agents
 
 Planning an event is not one question — it is a **pipeline of different skills**:

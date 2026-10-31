@@ -154,7 +154,12 @@ export default function AdminDashboard() {
     });
     scrollToResults();
     try {
-      const res = await api.createPlan(text);
+      // stream the run so the pipeline and terminal light up as each agent works
+      const res = await api.streamPlan(text, {
+        onStart: ({ plan_id }) => setState((s) => ({ ...s, plan_id })),
+        onStep: (step) =>
+          setState((s) => ({ ...s, stream_logs: [...(s?.stream_logs || []), step] })),
+      });
       setState(res);
       if (res.status === "awaiting_approval") setHitlOpen(true);
       setHistoryKey((k) => k + 1);
