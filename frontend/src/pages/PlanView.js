@@ -23,6 +23,7 @@ import ConsumerFooter from "../components/ConsumerFooter";
 import PlanInsights from "../components/PlanInsights";
 import WhatIf from "../components/WhatIf";
 import GuestRsvp from "../components/GuestRsvp";
+import Playlist from "../components/Playlist";
 import { api } from "../lib/api";
 import { cn, inr, unitLabel, vendorHighlights } from "../lib/utils";
 
@@ -162,8 +163,9 @@ function PlanContent({ state, planId, catalog }) {
             <div className="lg:col-span-8">
               <WhatIf planId={planId} requirements={state.requirements} />
             </div>
-            <div className="lg:col-span-4">
+            <div className="lg:col-span-4 space-y-6">
               <GuestRsvp planId={planId} />
+              <Playlist planId={planId} canRequest={false} compact />
             </div>
           </div>
         </>

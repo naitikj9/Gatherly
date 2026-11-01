@@ -11,8 +11,13 @@ Exposes the LangGraph engine in /src as REST endpoints:
   GET    /api/plans/{plan_id}/export.md  -> Markdown plan document
   POST   /api/plans/{plan_id}/whatif     -> re-price for new guests/budget (no LLM)
   GET    /api/plans/{plan_id}/invite     -> public event card for the RSVP page
+  GET    /api/plans/{plan_id}/invite.ics -> guest calendar file (no costs or checklist)
   POST   /api/plans/{plan_id}/rsvp       -> a guest answers the invite (rate limited)
   GET    /api/plans/{plan_id}/rsvps      -> headcount summary (+ names for admins)
+  GET    /api/plans/{plan_id}/songs      -> party playlist, most-voted first
+  POST   /api/plans/{plan_id}/songs      -> a guest requests a song (rate limited)
+  POST   /api/plans/{plan_id}/songs/{id}/vote -> vote / un-vote a song (rate limited)
+  DELETE /api/plans/{plan_id}/songs/{id} -> remove a request                 [admin]
   GET    /api/vendors                    -> full catalog
   GET    /api/sample-prompts             -> demo prompts
   GET    /api/architecture               -> static graph definition (for UI viz)
@@ -97,7 +102,19 @@ class RsvpRequest(BaseModel):
     note: str = Field(default="", max_length=200)
 
 
+class SongRequest(BaseModel):
+    title: str = Field(..., min_length=1, max_length=100)
+    artist: str = Field(default="", max_length=80)
+    by: str = Field(default="", max_length=40)
+    voter: str = Field(..., pattern=r"^[A-Za-z0-9_-]{8,64}$")
+
+
+class VoteRequest(BaseModel):
+    voter: str = Field(..., pattern=r"^[A-Za-z0-9_-]{8,64}$")
+
+
 MAX_RSVPS_PER_PLAN = 2000
+MAX_SONGS_PER_PLAN = 300
 CLOSED_STATUSES = {"refused", "rejected", "declined"}
 
 
@@ -147,6 +164,24 @@ def _rsvp_summary(state: dict, rows: List[dict]) -> dict:
         "over_capacity": bool(planned) and headcount > planned,
         "diet": diet,
     }
+
+
+def _song_view(row: dict, voter: Optional[str] = None) -> dict:
+    """Public shape of a song: vote count, never the voter ids."""
+    voters = row.get("voters") or []
+    return {
+        "id": row["id"],
+        "title": row["title"],
+        "artist": row.get("artist", ""),
+        "by": row.get("by", ""),
+        "votes": len(voters),
+        "mine": bool(voter) and voter in voters,
+    }
+
+
+def _playlist(rows: List[dict], voter: Optional[str] = None) -> List[dict]:
+    rows = sorted(rows, key=lambda r: (-len(r.get("voters") or []), r.get("created_at", "")))
+    return [_song_view(r, voter) for r in rows]
 
 
 # ---------------------------------------------------------------- Helpers
@@ -218,6 +253,9 @@ def create_app(
     limit_plans = rate_limit_guard(RateLimiter(cfg.rate_limit_per_minute), cfg.trust_proxy)
     limit_rsvps = rate_limit_guard(RateLimiter(cfg.rsvp_rate_limit_per_minute), cfg.trust_proxy,
                                    what="RSVPs from this network")
+    # its own bucket so voting on songs never eats into a guest's RSVP allowance
+    limit_party = rate_limit_guard(RateLimiter(cfg.rsvp_rate_limit_per_minute * 2),
+                                   cfg.trust_proxy, what="playlist actions from this network")
     run_slots = asyncio.Semaphore(cfg.max_concurrent_runs)
     background: set = set()  # streamed runs that outlive their HTTP connection
 
@@ -553,6 +591,19 @@ def create_app(
             "open": state.get("status") not in CLOSED_STATUSES,
         }
 
+    @app.get("/api/plans/{plan_id}/invite.ics")
+    async def invite_ics(plan_id: str) -> Response:
+        state = await _load_state(plan_id)
+        try:
+            body = to_ics(state, plan_id, guest=True)
+        except ValueError as e:
+            raise HTTPException(status_code=422, detail=str(e))
+        return Response(
+            content=body,
+            media_type="text/calendar; charset=utf-8",
+            headers={"Content-Disposition": f'attachment; filename="invite-{plan_id}.ics"'},
+        )
+
     @app.post("/api/plans/{plan_id}/rsvp", dependencies=[Depends(limit_rsvps)])
     async def rsvp(plan_id: str, body: RsvpRequest) -> dict:
         state = await _load_state(plan_id)
@@ -583,6 +634,50 @@ def create_app(
         if is_admin(request, cfg.admin_token):
             out["responses"] = rows
         return out
+
+    # ------------------------------------------------ party playlist
+    @app.get("/api/plans/{plan_id}/songs")
+    async def list_songs(plan_id: str, voter: Optional[str] = None) -> dict:
+        await _load_state(plan_id)
+        return {"plan_id": plan_id, "songs": _playlist(await store.list_songs(plan_id), voter)}
+
+    @app.post("/api/plans/{plan_id}/songs", dependencies=[Depends(limit_party)])
+    async def request_song(plan_id: str, body: SongRequest) -> dict:
+        """Request a song; asking for one already on the list counts as a vote."""
+        state = await _load_state(plan_id)
+        if state.get("status") in CLOSED_STATUSES:
+            raise HTTPException(status_code=409, detail="This event is not taking requests.")
+        title = " ".join(body.title.split())
+        if not title:
+            raise HTTPException(status_code=422, detail="Which song?")
+        if await store.count_songs(plan_id) >= MAX_SONGS_PER_PLAN:
+            raise HTTPException(status_code=409, detail="The playlist is full.")
+        row, created = await store.add_song(plan_id, {
+            "title": title,
+            "artist": " ".join(body.artist.split()),
+            "by": " ".join(body.by.split()),
+        }, body.voter)
+        metrics.inc("gatherly_song_requests_total", new=str(created).lower())
+        return {"ok": True, "created": created, "song": _song_view(row, body.voter),
+                "songs": _playlist(await store.list_songs(plan_id), body.voter)}
+
+    @app.post("/api/plans/{plan_id}/songs/{song_id}/vote", dependencies=[Depends(limit_party)])
+    async def vote_song(plan_id: str, song_id: str, body: VoteRequest) -> dict:
+        """Toggle: the first call adds this device's vote, the second takes it back."""
+        state = await _load_state(plan_id)
+        if state.get("status") in CLOSED_STATUSES:
+            raise HTTPException(status_code=409, detail="This event is not taking requests.")
+        row = await store.toggle_vote(plan_id, song_id, body.voter)
+        if row is None:
+            raise HTTPException(status_code=404, detail="song not found")
+        return {"ok": True, "song": _song_view(row, body.voter),
+                "songs": _playlist(await store.list_songs(plan_id), body.voter)}
+
+    @app.delete("/api/plans/{plan_id}/songs/{song_id}", dependencies=[Depends(require_admin)])
+    async def delete_song(plan_id: str, song_id: str) -> dict:
+        if not await store.delete_song(plan_id, song_id):
+            raise HTTPException(status_code=404, detail="song not found")
+        return {"ok": True}
 
     return app
 

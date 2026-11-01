@@ -122,4 +122,33 @@ export const api = {
   invite: (planId) => client.get(`/plans/${planId}/invite`).then((r) => r.data),
   rsvp: (planId, body) => client.post(`/plans/${planId}/rsvp`, body).then((r) => r.data),
   rsvps: (planId) => client.get(`/plans/${planId}/rsvps`).then((r) => r.data),
+  inviteIcsUrl: (planId) => `${API}/plans/${planId}/invite.ics`,
+  songs: (planId) =>
+    client.get(`/plans/${planId}/songs`, { params: { voter: voterId() } }).then((r) => r.data),
+  requestSong: (planId, body) =>
+    client.post(`/plans/${planId}/songs`, { ...body, voter: voterId() }).then((r) => r.data),
+  voteSong: (planId, songId) =>
+    client.post(`/plans/${planId}/songs/${songId}/vote`, { voter: voterId() }).then((r) => r.data),
+  deleteSong: (planId, songId) =>
+    client.delete(`/plans/${planId}/songs/${songId}`).then((r) => r.data),
 };
+
+// One anonymous id per browser, so each guest gets one vote per song.
+const VOTER_KEY = "gatherly_voter";
+let memoryVoter = null;
+
+function voterId() {
+  const fresh = () => `v-${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`;
+  try {
+    let id = localStorage.getItem(VOTER_KEY);
+    if (!id) {
+      id = fresh();
+      localStorage.setItem(VOTER_KEY, id);
+    }
+    return id;
+  } catch {
+    // private mode / blocked storage: still works for this visit
+    memoryVoter = memoryVoter || fresh();
+    return memoryVoter;
+  }
+}

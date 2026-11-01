@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Calendar, MapPin, Loader2, PartyPopper, Clock } from "lucide-react";
+import { Calendar, CalendarPlus, MapPin, Loader2, PartyPopper, Clock } from "lucide-react";
 import ConsumerNav from "../components/ConsumerNav";
 import ConsumerFooter from "../components/ConsumerFooter";
+import Playlist from "../components/Playlist";
 import { api } from "../lib/api";
 import { cn } from "../lib/utils";
 
@@ -12,6 +13,51 @@ const DIETS = [
   { id: "non-veg", label: "Non-veg" },
   { id: "any", label: "No preference" },
 ];
+
+/** Event start in local time: the date plus the first timeline slot, if it has one. */
+function eventStart(card) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(card?.event_date || "")) return null;
+  const [y, m, d] = card.event_date.split("-").map(Number);
+  const first = /^(\d{1,2}):(\d{2})/.exec(card.timeline?.[0]?.time || "");
+  return new Date(y, m - 1, d, first ? Number(first[1]) : 0, first ? Number(first[2]) : 0);
+}
+
+function Countdown({ card }) {
+  const start = eventStart(card);
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
+  if (!start) return null;
+
+  const left = start.getTime() - now;
+  if (left <= 0) {
+    // still "today" for the rest of the event day
+    if (now - start.getTime() > 24 * 3600 * 1000) return null;
+    return (
+      <div className="mt-6 font-serif text-2xl text-emerald-800" data-testid="countdown">
+        It&apos;s party time! 🎉
+      </div>
+    );
+  }
+  const units = [
+    ["days", Math.floor(left / 86400000)],
+    ["hrs", Math.floor(left / 3600000) % 24],
+    ["min", Math.floor(left / 60000) % 60],
+    ["sec", Math.floor(left / 1000) % 60],
+  ];
+  return (
+    <div className="mt-6 grid grid-cols-4 gap-2 max-w-sm" data-testid="countdown" aria-label="Time until the event">
+      {units.map(([label, n]) => (
+        <div key={label} className="border border-ivory-200 bg-white rounded-sm py-2 text-center">
+          <div className="font-serif text-2xl tabular-nums">{String(n).padStart(2, "0")}</div>
+          <div className="font-mono text-[10px] tracking-[0.2em] uppercase text-slate-soft">{label}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 /** Public page a guest opens from the invite link. */
 export default function Invite() {
@@ -84,6 +130,17 @@ export default function Invite() {
                   </div>
                 )}
               </div>
+
+              <Countdown card={card} />
+              {eventStart(card) && (
+                <a
+                  href={api.inviteIcsUrl(planId)}
+                  data-testid="add-to-calendar"
+                  className="mt-4 inline-flex items-center gap-2 px-4 py-2 border border-emerald-800 text-emerald-800 hover:bg-emerald-50 rounded-full text-[13px] font-medium"
+                >
+                  <CalendarPlus size={14} /> Add to calendar
+                </a>
+              )}
 
               {card.timeline?.length > 0 && (
                 <ol className="mt-6 border-l border-ivory-200 pl-4 space-y-1.5">
@@ -211,6 +268,17 @@ export default function Invite() {
                     {busy && <Loader2 size={14} className="animate-spin" />} Send RSVP
                   </button>
                 </form>
+              )}
+
+              {card.open && (
+                <div className="mt-10">
+                  <Playlist planId={planId} defaultBy={sent ? form.name.trim().split(/\s+/)[0] : ""} />
+                  {sent && (
+                    <p className="mt-2 text-[11.5px] text-slate-soft">
+                      Songs you request now show your first name.
+                    </p>
+                  )}
+                </div>
               )}
             </motion.div>
           )}

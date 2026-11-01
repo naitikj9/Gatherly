@@ -3,13 +3,15 @@
 MongoPlanStore is the production store. MemoryPlanStore is used when no
 MONGO_URL is configured (local dev, tests), so the API runs without a database.
 Both also hold idempotency keys, so a retried POST never plans the same event
-twice, and guest RSVPs (one response per guest name per plan).
+twice, guest RSVPs (one response per guest name per plan) and the party
+playlist (song requests with one vote per guest device).
 """
 from __future__ import annotations
 
 import asyncio
+import uuid
 from datetime import datetime, timezone
-from typing import Dict, List, Optional, Protocol
+from typing import Dict, List, Optional, Protocol, Tuple
 
 
 def _now() -> str:
@@ -47,6 +49,16 @@ class PlanStore(Protocol):
     async def upsert_rsvp(self, plan_id: str, rsvp: dict) -> bool: ...
     async def list_rsvps(self, plan_id: str) -> List[dict]: ...
     async def count_rsvps(self, plan_id: str) -> int: ...
+    async def add_song(self, plan_id: str, song: dict, voter: str) -> Tuple[dict, bool]: ...
+    async def toggle_vote(self, plan_id: str, song_id: str, voter: str) -> Optional[dict]: ...
+    async def list_songs(self, plan_id: str) -> List[dict]: ...
+    async def count_songs(self, plan_id: str) -> int: ...
+    async def delete_song(self, plan_id: str, song_id: str) -> bool: ...
+
+
+def song_key(title: str) -> str:
+    """'Kesariya ' and 'kesariya' are one request, whoever typed the artist."""
+    return " ".join(title.lower().split())
 
 
 def rsvp_key(name: str) -> str:
@@ -63,6 +75,7 @@ class MemoryPlanStore:
         self._plans: Dict[str, dict] = {}
         self._idem: Dict[str, dict] = {}
         self._rsvps: Dict[str, Dict[str, dict]] = {}
+        self._songs: Dict[str, Dict[str, dict]] = {}  # plan_id -> song id -> song
         self._lock = asyncio.Lock()
 
     async def upsert(self, plan_id: str, doc: dict) -> None:
@@ -83,6 +96,7 @@ class MemoryPlanStore:
     async def delete(self, plan_id: str) -> bool:
         async with self._lock:
             self._rsvps.pop(plan_id, None)
+            self._songs.pop(plan_id, None)
             return self._plans.pop(plan_id, None) is not None
 
     async def ping(self) -> bool:
@@ -115,6 +129,48 @@ class MemoryPlanStore:
     async def count_rsvps(self, plan_id: str) -> int:
         return len(self._rsvps.get(plan_id, {}))
 
+    async def add_song(self, plan_id: str, song: dict, voter: str) -> Tuple[dict, bool]:
+        """Add a request, or count it as a vote if the song is already on the list."""
+        key = song_key(song["title"])
+        async with self._lock:
+            songs = self._songs.setdefault(plan_id, {})
+            for row in songs.values():
+                if row["key"] == key:
+                    if voter not in row["voters"]:
+                        row["voters"].append(voter)
+                    if not row.get("artist") and song.get("artist"):
+                        row["artist"] = song["artist"]
+                    return _copy_song(row), False
+            row = {**song, "id": uuid.uuid4().hex[:12], "key": key,
+                   "voters": [voter], "created_at": _now()}
+            songs[row["id"]] = row
+            return _copy_song(row), True
+
+    async def toggle_vote(self, plan_id: str, song_id: str, voter: str) -> Optional[dict]:
+        async with self._lock:
+            row = self._songs.get(plan_id, {}).get(song_id)
+            if row is None:
+                return None
+            if voter in row["voters"]:
+                row["voters"].remove(voter)
+            else:
+                row["voters"].append(voter)
+            return _copy_song(row)
+
+    async def list_songs(self, plan_id: str) -> List[dict]:
+        return [_copy_song(r) for r in self._songs.get(plan_id, {}).values()]
+
+    async def count_songs(self, plan_id: str) -> int:
+        return len(self._songs.get(plan_id, {}))
+
+    async def delete_song(self, plan_id: str, song_id: str) -> bool:
+        async with self._lock:
+            return self._songs.get(plan_id, {}).pop(song_id, None) is not None
+
+
+def _copy_song(row: dict) -> dict:
+    return {**row, "voters": list(row["voters"])}
+
 
 class MongoPlanStore:
     name = "mongo"
@@ -127,6 +183,7 @@ class MongoPlanStore:
         self._plans = db["plans"]
         self._idem = db["idempotency_keys"]
         self._rsvps = db["rsvps"]
+        self._songs = db["songs"]
         self._indexes_ready = False
 
     async def _ensure_indexes(self) -> None:
@@ -139,6 +196,8 @@ class MongoPlanStore:
         # idempotency keys only need to live a day
         await self._idem.create_index("created_at_dt", expireAfterSeconds=86400)
         await self._rsvps.create_index([("plan_id", 1), ("key", 1)], unique=True)
+        await self._songs.create_index([("plan_id", 1), ("key", 1)], unique=True)
+        await self._songs.create_index([("plan_id", 1), ("id", 1)], unique=True)
         self._indexes_ready = True
 
     async def upsert(self, plan_id: str, doc: dict) -> None:
@@ -160,6 +219,7 @@ class MongoPlanStore:
     async def delete(self, plan_id: str) -> bool:
         res = await self._plans.delete_one({"plan_id": plan_id})
         await self._rsvps.delete_many({"plan_id": plan_id})
+        await self._songs.delete_many({"plan_id": plan_id})
         return res.deleted_count > 0
 
     async def ping(self) -> bool:
@@ -199,6 +259,49 @@ class MongoPlanStore:
 
     async def count_rsvps(self, plan_id: str) -> int:
         return await self._rsvps.count_documents({"plan_id": plan_id})
+
+    async def add_song(self, plan_id: str, song: dict, voter: str) -> Tuple[dict, bool]:
+        from pymongo import ReturnDocument
+        from pymongo.errors import DuplicateKeyError
+
+        await self._ensure_indexes()
+        key = song_key(song["title"])
+        before = await self._songs.find_one({"plan_id": plan_id, "key": key}, {"_id": 1})
+        update = {"$setOnInsert": {**song, "id": uuid.uuid4().hex[:12], "created_at": _now()},
+                  "$addToSet": {"voters": voter}}
+        opts = {"projection": {"_id": 0, "plan_id": 0}, "return_document": ReturnDocument.AFTER}
+        try:
+            row = await self._songs.find_one_and_update(
+                {"plan_id": plan_id, "key": key}, update, upsert=True, **opts)
+        except DuplicateKeyError:
+            # another guest added the same song a moment ago: count this as a vote
+            row = await self._songs.find_one_and_update(
+                {"plan_id": plan_id, "key": key}, {"$addToSet": {"voters": voter}}, **opts)
+            before = row
+        if before is not None and song.get("artist") and not row.get("artist"):
+            await self._songs.update_one({"plan_id": plan_id, "key": key, "artist": ""},
+                                         {"$set": {"artist": song["artist"]}})
+            row = {**row, "artist": song["artist"]}
+        return row, before is None
+
+    async def toggle_vote(self, plan_id: str, song_id: str, voter: str) -> Optional[dict]:
+        query = {"plan_id": plan_id, "id": song_id}
+        # take the vote back if this voter has one; otherwise add it
+        res = await self._songs.update_one({**query, "voters": voter}, {"$pull": {"voters": voter}})
+        if res.modified_count == 0:
+            await self._songs.update_one(query, {"$addToSet": {"voters": voter}})
+        return await self._songs.find_one(query, {"_id": 0, "plan_id": 0})
+
+    async def list_songs(self, plan_id: str) -> List[dict]:
+        cursor = self._songs.find({"plan_id": plan_id}, {"_id": 0, "plan_id": 0})
+        return await cursor.to_list(length=None)
+
+    async def count_songs(self, plan_id: str) -> int:
+        return await self._songs.count_documents({"plan_id": plan_id})
+
+    async def delete_song(self, plan_id: str, song_id: str) -> bool:
+        res = await self._songs.delete_one({"plan_id": plan_id, "id": song_id})
+        return res.deleted_count > 0
 
 
 def make_store(mongo_url: str, db_name: str) -> PlanStore:
