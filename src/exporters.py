@@ -81,7 +81,9 @@ def _all_day_event(uid: str, day: str, summary: str, description: str, stamp: st
     ]
 
 
-def to_ics(state: Dict[str, Any], plan_id: str = "plan") -> str:
+def to_ics(state: Dict[str, Any], plan_id: str = "plan", guest: bool = False) -> str:
+    """Calendar file for the host (event + cost + prep checklist), or with
+    `guest=True` just the event and timeline, for the public invite page."""
     req = state.get("requirements") or {}
     insights = state.get("insights") or {}
     shortlist = state.get("shortlist") or {}
@@ -93,7 +95,8 @@ def to_ics(state: Dict[str, Any], plan_id: str = "plan") -> str:
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     title = f"{(req.get('event_type') or 'Event').title()} in {req.get('city') or '?'}"
     venue = (shortlist.get("venue") or {}).get("name", "")
-    details = [f"{req.get('guest_count', 0)} guests · total {_inr(plan.get('total_cost_inr'))}"]
+    details = ([] if guest else
+               [f"{req.get('guest_count', 0)} guests · total {_inr(plan.get('total_cost_inr'))}"])
     details += [f"{item.get('time')}: {item.get('activity')}" for item in plan.get("timeline", [])]
 
     lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Gatherly//Event Plan//EN",
@@ -102,7 +105,7 @@ def to_ics(state: Dict[str, Any], plan_id: str = "plan") -> str:
     if venue:
         event.insert(-1, f"LOCATION:{_ics_escape(venue + ', ' + (req.get('city') or ''))}")
     lines += event
-    for i, task in enumerate(insights.get("checklist", [])):
+    for i, task in enumerate([] if guest else insights.get("checklist", [])):
         prefix = "[URGENT] " if task.get("urgent") else ""
         lines += _all_day_event(
             f"{plan_id}-task-{i}@gatherly", task["due"], f"{prefix}{task['task']}",

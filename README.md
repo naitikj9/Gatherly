@@ -71,6 +71,20 @@ curl -N -X POST localhost:8001/api/plans/stream -H "Content-Type: application/js
   -d '{"request": "Plan a wedding in Bangalore for 150 guests, budget 8 lakh"}'
 ```
 
+## 🎶 Party extras (Gatherly 2.3)
+
+| Feature | What it does | Where |
+|---|---|---|
+| 🎵 **Party playlist** | Guests request songs on the invite page and heart each other's picks; the most-loved song plays first and gets a 🔥. Asking for a song already on the list counts as a vote (and can fill in a missing artist). One vote per song per browser, tap again to take it back. The host sees the ranked list to hand to the DJ, and an admin can remove a request. Rate limited in its own bucket so voting never blocks an RSVP. | `backend/server.py`, `backend/core/storage.py`, `frontend/src/components/Playlist.js` |
+| ⏳ **Live countdown** | The invite page ticks down days / hours / minutes / seconds to the first timeline slot, then shows "It's party time!" on the day. | `frontend/src/pages/Invite.js` |
+| 📅 **Add to calendar for guests** | `GET /api/plans/{id}/invite.ics`: the event, venue and timeline only. No costs and no host prep checklist (those stay in the host's `export.ics`). | `src/exporters.py` (`to_ics(..., guest=True)`) |
+
+```bash
+# request a song (voter is any 8-64 char id; the web app keeps one per browser)
+curl -X POST localhost:8001/api/plans/<plan_id>/songs -H "Content-Type: application/json" \
+  -d '{"title": "Kesariya", "artist": "Arijit Singh", "voter": "my-phone-1234"}'
+```
+
 ## 1. The problem & why it needs multiple agents
 
 Planning an event is not one question — it is a **pipeline of different skills**:
